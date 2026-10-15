@@ -120,9 +120,11 @@ class SalesforceRPA:
             razao_input = modal.locator('input[name="RazaoSocial__c"]')
             razao_input.fill(razao_social)
 
-            # CNPJ (*) - Somente números sem formatação
+            # CNPJ (*) - Somente números sem formatação (14 dígitos)
             cnpj_input = modal.locator('input[name="CNPJ__c"]')
             clean_digits_cnpj = re.sub(r"\D", "", cnpj)
+            if 0 < len(clean_digits_cnpj) < 14:
+                clean_digits_cnpj = clean_digits_cnpj.zfill(14)
             cnpj_input.fill(clean_digits_cnpj)
 
             # Telefone (*) - 55 + 11 dígitos

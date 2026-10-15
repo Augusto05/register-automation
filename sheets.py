@@ -6,10 +6,13 @@ from typing import List, Dict, Any, Optional
 from config import SPREADSHEET_ID, SHEET_GID, APPS_SCRIPT_WEBHOOK_URL
 
 def clean_cnpj(val: Any) -> str:
-    """Extrai apenas os números do CNPJ."""
+    """Extrai apenas os números do CNPJ e garante 14 dígitos (preserva zeros à esquerda)."""
     if not val:
         return ""
-    return re.sub(r"\D", "", str(val))
+    digits = re.sub(r"\D", "", str(val))
+    if 0 < len(digits) < 14:
+        digits = digits.zfill(14)
+    return digits
 
 def clean_phone(val: Any) -> str:
     """Higieniza telefone garantindo o formato 55 + 11 dígitos."""
