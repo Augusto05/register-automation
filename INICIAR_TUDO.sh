@@ -12,9 +12,15 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 if [ ! -d "venv" ]; then
-    echo "[1/3] Criando ambiente virtual..."
+    echo "[1/3] Criando ambiente virtual Python..."
     python3 -m venv venv
+    source venv/bin/activate
+    echo "[2/3] Instalando dependências (Playwright, Streamlit, etc.)..."
+    pip install -r requirements.txt
+    playwright install chromium
+else
+    source venv/bin/activate
 fi
 
-source venv/bin/activate
+echo "[3/3] Iniciando painel de controle e robô..."
 python3 gui.py
