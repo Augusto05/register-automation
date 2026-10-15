@@ -33,7 +33,7 @@ if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-:: 4. Executa o inicializador mestre unificado
-python run.py
+:: 4. Executa a interface gráfica e o robô
+python gui.py
 
 pause

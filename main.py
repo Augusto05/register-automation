@@ -1,3 +1,4 @@
+import sys
 import time
 import random
 import logging
@@ -7,7 +8,15 @@ from config import (
     INTERVAL_JITTER,
     IDLE_KEEP_ALIVE_INTERVAL
 )
-from db import init_db, is_cnpj_processed, record_lead, update_heartbeat, get_stats_today
+from db import (
+    init_db,
+    is_cnpj_processed,
+    record_lead,
+    update_heartbeat,
+    get_stats_today,
+    is_bot_paused,
+    consume_force_check
+)
 from sheets import fetch_pending_leads, update_sheet_status
 from rpa import SalesforceRPA
 
@@ -20,57 +29,97 @@ logging.basicConfig(
     ]
 )
 
-def wait_with_heartbeat(seconds: int, action_prefix: str):
-    """Aguarda o intervalo atualizando o batimento a cada 5 segundos."""
+def prevent_windows_sleep():
+    """Impede que o Windows suspenda ou durma por inatividade enquanto o robô roda."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ES_CONTINUOUS = 0x80000000
+            ES_SYSTEM_REQUIRED = 0x00000001
+            ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+            logging.info("[Sistema] Modo anti-suspensão do Windows ativado.")
+        except Exception as e:
+            logging.warning(f"[Sistema] Aviso ao configurar anti-suspensão: {e}")
+
+def wait_with_heartbeat(seconds: int, action_prefix: str) -> bool:
+    """
+    Aguarda o intervalo atualizando o batimento a cada 2 segundos.
+    Respeita pausas e sinal de verificação imediata.
+    Retorna True se completou o tempo, ou False se foi interrompido.
+    """
     start = time.time()
     while time.time() - start < seconds:
+        # Se o usuário clicou em forçar verificação
+        if consume_force_check():
+            logging.info("[Controle] Verificação imediata solicitada pelo usuário.")
+            return True
+
+        # Se o usuário pausou o robô
+        while is_bot_paused():
+            update_heartbeat("PAUSADO", "Robô pausado pelo usuário. Clique em Retomar para continuar.")
+            time.sleep(1)
+
         remaining = int(seconds - (time.time() - start))
         update_heartbeat("AGUARDANDO_INTERVALO", f"{action_prefix} (próximo em {remaining}s)")
-        time.sleep(min(5, max(1, remaining)))
+        time.sleep(min(2, max(1, remaining)))
+    return True
 
 def run_automation_loop():
     logging.info("Iniciando Automação de Leads Salesforce C6 Bank (24/7)...")
+    prevent_windows_sleep()
     init_db()
     update_heartbeat("INICIANDO", "Carregando navegador Chrome com perfil persistente...")
 
     rpa = SalesforceRPA(headless=False)
     rpa.start()
 
-    logging.info("Navegador iniciado. Verificando sessão...")
+    logging.info("Navegador iniciado. Acessando Salesforce Leads...")
     rpa.navigate_to_leads()
     
+    # Verificação explícita de login
     if not rpa.is_logged_in():
-        logging.warning("ATENÇÃO: Efetue o login no Salesforce na janela do Chrome aberta.")
-        update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login manual na janela do Chrome...")
+        logging.warning("ATENÇÃO: Faça o login na janela aberta do Chrome (usuário, senha e 2FA).")
+        update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
         while not rpa.is_logged_in():
-            time.sleep(5)
+            time.sleep(3)
         logging.info("Login detectado com sucesso!")
 
+    update_heartbeat("OCIOSO", "Login autenticado! Iniciando monitoramento da planilha...")
     last_keep_alive = time.time()
 
     while True:
         try:
+            # Verifica se o robô foi colocado em pausa pelo usuário
+            while is_bot_paused():
+                update_heartbeat("PAUSADO", "Robô pausado. Clique em 'Retomar' para voltar.")
+                time.sleep(1)
+
             update_heartbeat("CONSULTANDO_PLANILHA", "Buscando novos leads na planilha online...")
             pending_leads = fetch_pending_leads()
             
-            # Filtra leads que já foram cadastrados no banco local
+            # Filtra leads já cadastrados no banco local
             unprocessed_leads = [l for l in pending_leads if not is_cnpj_processed(l["cnpj"])]
 
             if unprocessed_leads:
                 logging.info(f"Encontrados {len(unprocessed_leads)} leads pendentes para cadastro.")
                 
                 for idx, lead in enumerate(unprocessed_leads):
+                    # Verifica se o usuário pausou durante o processamento do lote
+                    while is_bot_paused():
+                        update_heartbeat("PAUSADO", "Robô pausado entre leads. Clique em Retomar.")
+                        time.sleep(1)
+
                     cnpj = lead["cnpj"]
                     razao = lead["razao_social"]
                     logging.info(f"[{idx+1}/{len(unprocessed_leads)}] Processando: {cnpj} - {razao}")
                     
-                    update_heartbeat("PROCESSANDO", f"Cadastrando: {cnpj} ({razao[:25]})")
+                    update_heartbeat("PROCESSANDO", f"Cadastrando: {cnpj} ({razao[:22]})")
                     
                     result = rpa.register_lead(lead)
                     status = result["status"]
                     error = result["error"]
 
-                    # Grava no banco SQLite local
+                    # Grava no banco local
                     record_lead(
                         cnpj=cnpj,
                         razao_social=razao,
@@ -80,7 +129,7 @@ def run_automation_loop():
                         error_message=error
                     )
 
-                    # Atualiza status na planilha online
+                    # Atualiza na planilha online
                     update_sheet_status(cnpj, status, error)
 
                     stats = get_stats_today()
@@ -89,32 +138,38 @@ def run_automation_loop():
 
                     last_keep_alive = time.time()
 
-                    # Se ainda restam leads acumulados nesta rodada, aguarda o intervalo de 3 minutos
+                    # Se ainda restam leads nesta rodada, aguarda o intervalo de 3 minutos
                     if idx < len(unprocessed_leads) - 1:
                         delay = INTERVAL_BETWEEN_LEADS + random.randint(-INTERVAL_JITTER, INTERVAL_JITTER)
                         logging.info(f"Aguardando {delay}s (3 min) antes do próximo lead para evitar bloqueios...")
-                        wait_with_heartbeat(delay, f"Lead anterior: {status}. Aguardando rate-limit")
+                        wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit")
 
             else:
                 # Fila vazia: momento de ociosidade
                 update_heartbeat("OCIOSO", "Fila zerada. Aguardando novos leads na planilha online...")
-                time.sleep(15)
+                
+                # Aguarda até 15s com checagem de força de verificação
+                for _ in range(15):
+                    if consume_force_check():
+                        logging.info("[Controle] Verificação antecipada solicitada!")
+                        break
+                    time.sleep(1)
 
-                # Se passou do intervalo anti-logoff (4 min), faz keep-alive na página
+                # Anti-logoff a cada 4 minutos em momentos de ociosidade
                 if time.time() - last_keep_alive >= IDLE_KEEP_ALIVE_INTERVAL:
-                    logging.info("[Keep-Alive] Realizando interação periódica anti-logoff...")
-                    update_heartbeat("OCIOSO", "Anti-logoff: atualizando sessão da página...")
+                    logging.info("[Anti-Logoff] Interação periódica para manter a sessão ativa...")
+                    update_heartbeat("OCIOSO", "Anti-logoff: mantendo sessão do C6 ativa...")
                     rpa.keep_alive_interaction()
                     last_keep_alive = time.time()
 
         except KeyboardInterrupt:
-            logging.info("Encerrando automação por solicitação do usuário...")
-            update_heartbeat("PARADO", "Robô finalizado manualmente")
+            logging.info("Encerrando automação por solicitação...")
+            update_heartbeat("PARADO", "Robô finalizado.")
             rpa.stop()
             break
         except Exception as e:
-            logging.error(f"Erro inesperado no loop principal: {e}", exc_info=True)
-            update_heartbeat("ERRO", f"Recuperando de erro: {str(e)[:40]}")
+            logging.error(f"Erro no loop principal: {e}", exc_info=True)
+            update_heartbeat("ERRO", f"Recuperando de erro: {str(e)[:35]}")
             time.sleep(10)
 
 if __name__ == "__main__":

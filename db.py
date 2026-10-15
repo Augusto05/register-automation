@@ -25,24 +25,25 @@ def init_db():
     )
     """)
 
-    # Tabela de status do robô (Heartbeat para o Dashboard)
+    # Tabela de status e controle do robô (Heartbeat para GUI e Dashboard)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS bot_heartbeat (
         id INTEGER PRIMARY KEY,
         last_ping TIMESTAMP,
-        state TEXT, -- 'INICIANDO', 'PROCESSANDO', 'AGUARDANDO_INTERVALO', 'OCIOSO', 'ERRO'
+        state TEXT, -- 'INICIANDO', 'AGUARDANDO_LOGIN', 'PROCESSANDO', 'AGUARDANDO_INTERVALO', 'OCIOSO', 'PAUSADO', 'ERRO'
         current_action TEXT,
         total_cadastrados_hoje INTEGER DEFAULT 0,
-        total_indisponiveis_hoje INTEGER DEFAULT 0
+        total_indisponiveis_hoje INTEGER DEFAULT 0,
+        is_paused INTEGER DEFAULT 0,
+        force_check INTEGER DEFAULT 0
     )
     """)
 
-    # Garante 1 registro inicial de heartbeat
     cursor.execute("SELECT COUNT(*) FROM bot_heartbeat WHERE id = 1")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
-        INSERT INTO bot_heartbeat (id, last_ping, state, current_action, total_cadastrados_hoje, total_indisponiveis_hoje)
-        VALUES (1, CURRENT_TIMESTAMP, 'OCIOSO', 'Robô inicializado', 0, 0)
+        INSERT INTO bot_heartbeat (id, last_ping, state, current_action, total_cadastrados_hoje, total_indisponiveis_hoje, is_paused, force_check)
+        VALUES (1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado', 0, 0, 0, 0)
         """)
 
     conn.commit()
@@ -140,3 +141,43 @@ def get_heartbeat():
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+
+def set_bot_paused(paused: bool):
+    """Pausa ou retoma a execução do robô."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    val = 1 if paused else 0
+    new_state = "PAUSADO" if paused else "OCIOSO"
+    cursor.execute("UPDATE bot_heartbeat SET is_paused = ?, state = ? WHERE id = 1", (val, new_state))
+    conn.commit()
+    conn.close()
+
+def is_bot_paused() -> bool:
+    """Verifica se o robô foi pausado pelo usuário."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT is_paused FROM bot_heartbeat WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+    return bool(row["is_paused"]) if row else False
+
+def trigger_force_check():
+    """Sinaliza ao robô para verificar a planilha imediatamente."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE bot_heartbeat SET force_check = 1 WHERE id = 1")
+    conn.commit()
+    conn.close()
+
+def consume_force_check() -> bool:
+    """Verifica e consome o sinal de verificação imediata."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT force_check FROM bot_heartbeat WHERE id = 1")
+    row = cursor.fetchone()
+    needed = bool(row["force_check"]) if row else False
+    if needed:
+        cursor.execute("UPDATE bot_heartbeat SET force_check = 0 WHERE id = 1")
+        conn.commit()
+    conn.close()
+    return needed

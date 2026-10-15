@@ -17,4 +17,4 @@ if [ ! -d "venv" ]; then
 fi
 
 source venv/bin/activate
-python3 run.py
+python3 gui.py
