@@ -79,8 +79,8 @@ def run_automation_loop():
     # Verificação explícita de login
     if not rpa.is_logged_in():
         logging.warning("ATENÇÃO: Faça o login na janela aberta do Chrome (usuário, senha e 2FA).")
-        update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
         while not rpa.is_logged_in():
+            update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
             time.sleep(3)
         logging.info("Login detectado com sucesso!")
 
@@ -92,7 +92,7 @@ def run_automation_loop():
             # Verifica se o robô foi colocado em pausa pelo usuário
             while is_bot_paused():
                 update_heartbeat("PAUSADO", "Robô pausado. Clique em 'Retomar' para voltar.")
-                time.sleep(1)
+                time.sleep(2)
 
             update_heartbeat("CONSULTANDO_PLANILHA", "Buscando novos leads na planilha online...")
             pending_leads = fetch_pending_leads()
@@ -148,11 +148,13 @@ def run_automation_loop():
                 # Fila vazia: momento de ociosidade
                 update_heartbeat("OCIOSO", "Fila zerada. Aguardando novos leads na planilha online...")
                 
-                # Aguarda até 15s com checagem de força de verificação
-                for _ in range(15):
+                # Aguarda até 15s com checagem de força de verificação e pulso de batimento
+                for i in range(15):
                     if consume_force_check():
                         logging.info("[Controle] Verificação antecipada solicitada!")
                         break
+                    if i % 4 == 0:
+                        update_heartbeat("OCIOSO", "Fila zerada. Aguardando novos leads na planilha online...")
                     time.sleep(1)
 
                 # Anti-logoff a cada 4 minutos em momentos de ociosidade
