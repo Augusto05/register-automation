@@ -9,7 +9,7 @@ SALESFORCE_LEADS_URL = "https://c6bank.my.site.com/partners/s/lead/Lead/00B5A000
 # Google Sheets Config
 # Pode ser o ID da planilha ou a URL pública completa
 # Exemplo: https://docs.google.com/spreadsheets/d/SEU_SPREADSHEET_ID/edit
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "SEU_SPREADSHEET_ID_AQUI")
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1H2Ue1NFBvqtU4edxFGb89gfaRrQb3FxmabuwHb4-6Ak")
 SHEET_GID = os.getenv("SHEET_GID", "0") # ID da aba (aba 1 costuma ser 0)
 
 # URL do Webhook do Google Apps Script (opcional, para gravar Status CADASTRADO/INDISPONIVEL na planilha pública sem auth)
