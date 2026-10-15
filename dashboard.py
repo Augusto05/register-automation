@@ -58,7 +58,9 @@ status_colors = {
     "AGUARDANDO_INTERVALO": "#F59E0B",
     "OCIOSO": "#10B981",
     "AGUARDANDO_LOGIN": "#8B5CF6",
+    "PAUSADO": "#F59E0B",
     "ERRO": "#EF4444",
+    "DESLIGADO": "#EF4444",
     "PARADO": "#6B7280"
 }
 state_color = status_colors.get(bot_state, "#6B7280")

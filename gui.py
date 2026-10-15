@@ -218,6 +218,7 @@ class BotGUI:
             
             # Atualiza Badge de Status
             state_styles = {
+                "DESLIGADO": ("#EF4444", "🔴 OFFLINE / DESLIGADO"),
                 "INICIANDO": ("#3B82F6", "INICIANDO..."),
                 "AGUARDANDO_LOGIN": ("#8B5CF6", "🔑 FAÇA LOGIN NO CHROME"),
                 "PROCESSANDO": ("#3B82F6", "⚡ CADASTRANDO LEAD"),

@@ -134,13 +134,37 @@ def get_all_leads():
     return rows
 
 def get_heartbeat():
-    """Retorna o estado do heartbeat do robô."""
+    """Retorna o estado do heartbeat do robô, validando se ele está realmente ativo."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM bot_heartbeat WHERE id = 1")
+    cursor.execute("""
+        SELECT *, (strftime('%s', 'now') - strftime('%s', last_ping)) as seconds_since_ping 
+        FROM bot_heartbeat 
+        WHERE id = 1
+    """)
     row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else None
+    
+    if not row:
+        return {
+            "state": "DESLIGADO",
+            "is_alive": False,
+            "current_action": "Robô não iniciado",
+            "last_ping": "N/A",
+            "total_cadastrados_hoje": 0,
+            "total_indisponiveis_hoje": 0
+        }
+    
+    d = dict(row)
+    seconds_since = d.get("seconds_since_ping")
+    if seconds_since is None or seconds_since > 40:
+        d["is_alive"] = False
+        d["state"] = "DESLIGADO"
+        d["current_action"] = "Robô desligado / offline (aguardando inicialização)"
+    else:
+        d["is_alive"] = True
+        
+    return d
 
 def set_bot_paused(paused: bool):
     """Pausa ou retoma a execução do robô."""
