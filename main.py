@@ -80,11 +80,12 @@ def run_automation_loop():
         logging.warning(f"Aviso inicial ao abrir Leads: {e}")
     
     # Verificação explícita de login
-    if not rpa.is_logged_in():
+    from db import is_manual_login_confirmed
+    if not rpa.is_logged_in() and not is_manual_login_confirmed():
         logging.warning("ATENÇÃO: Faça o login na janela aberta do Chrome (usuário, senha e 2FA).")
-        while not rpa.is_logged_in():
+        while not rpa.is_logged_in() and not is_manual_login_confirmed():
             update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
-            time.sleep(3)
+            time.sleep(2)
         logging.info("Login detectado com sucesso!")
         # Uma vez logado, navega para a tela de leads
         try:

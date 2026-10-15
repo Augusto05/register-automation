@@ -35,15 +35,23 @@ def init_db():
         total_cadastrados_hoje INTEGER DEFAULT 0,
         total_indisponiveis_hoje INTEGER DEFAULT 0,
         is_paused INTEGER DEFAULT 0,
-        force_check INTEGER DEFAULT 0
+        force_check INTEGER DEFAULT 0,
+        manual_login INTEGER DEFAULT 0
     )
     """)
+
+    # Migrações seguras caso a tabela já exista na máquina do usuário
+    for col in ["is_paused", "force_check", "manual_login"]:
+        try:
+            cursor.execute(f"ALTER TABLE bot_heartbeat ADD COLUMN {col} INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
     cursor.execute("SELECT COUNT(*) FROM bot_heartbeat WHERE id = 1")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
-        INSERT INTO bot_heartbeat (id, last_ping, state, current_action, total_cadastrados_hoje, total_indisponiveis_hoje, is_paused, force_check)
-        VALUES (1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado', 0, 0, 0, 0)
+        INSERT INTO bot_heartbeat (id, last_ping, state, current_action, total_cadastrados_hoje, total_indisponiveis_hoje, is_paused, force_check, manual_login)
+        VALUES (1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado', 0, 0, 0, 0, 0)
         """)
 
     conn.commit()
@@ -266,19 +274,51 @@ def trigger_force_check():
     """Sinaliza ao robô para verificar a planilha imediatamente."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE bot_heartbeat SET force_check = 1 WHERE id = 1")
-    conn.commit()
+    try:
+        cursor.execute("UPDATE bot_heartbeat SET force_check = 1 WHERE id = 1")
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
 
 def consume_force_check() -> bool:
     """Verifica e consome o sinal de verificação imediata."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT force_check FROM bot_heartbeat WHERE id = 1")
-    row = cursor.fetchone()
-    needed = bool(row["force_check"]) if row else False
-    if needed:
-        cursor.execute("UPDATE bot_heartbeat SET force_check = 0 WHERE id = 1")
-        conn.commit()
+    needed = False
+    try:
+        cursor.execute("SELECT force_check FROM bot_heartbeat WHERE id = 1")
+        row = cursor.fetchone()
+        needed = bool(row["force_check"]) if row and "force_check" in row.keys() else False
+        if needed:
+            cursor.execute("UPDATE bot_heartbeat SET force_check = 0 WHERE id = 1")
+            conn.commit()
+    except Exception:
+        pass
     conn.close()
     return needed
+
+def confirm_manual_login():
+    """Confirma que o usuário já fez o login no Chrome."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE bot_heartbeat SET manual_login = 1 WHERE id = 1")
+        conn.commit()
+    except Exception:
+        pass
+    conn.close()
+
+def is_manual_login_confirmed() -> bool:
+    """Verifica se o usuário confirmou o login manualmente."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    val = False
+    try:
+        cursor.execute("SELECT manual_login FROM bot_heartbeat WHERE id = 1")
+        row = cursor.fetchone()
+        val = bool(row["manual_login"]) if row and "manual_login" in row.keys() else False
+    except Exception:
+        pass
+    conn.close()
+    return val

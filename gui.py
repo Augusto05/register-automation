@@ -113,6 +113,21 @@ class BotGUI:
         )
         self.pause_btn.pack(side="left", padx=(0, 8))
 
+        self.login_done_btn = tk.Button(
+            btn_frame,
+            text="✅ Já fiz o Login!",
+            font=("Helvetica", 10, "bold"),
+            bg="#10B981",
+            fg="#FFFFFF",
+            activebackground="#059669",
+            padx=12,
+            pady=8,
+            relief="flat",
+            cursor="hand2",
+            command=self._confirm_login
+        )
+        self.login_done_btn.pack(side="left", padx=4)
+
         self.check_now_btn = tk.Button(
             btn_frame,
             text="🔄 Verificar Planilha Agora",
@@ -206,6 +221,12 @@ class BotGUI:
     def _force_check(self):
         trigger_force_check()
         self.activity_label.configure(text="Solicitando verificação antecipada da planilha...")
+
+    def _confirm_login(self):
+        from db import confirm_manual_login
+        confirm_manual_login()
+        self.activity_label.configure(text="Login confirmado! Robô acessando os Leads...")
+        self.login_done_btn.configure(state="disabled", text="✅ Login OK")
 
     def _open_dashboard(self):
         webbrowser.open("http://localhost:8501")

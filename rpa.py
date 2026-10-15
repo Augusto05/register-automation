@@ -68,8 +68,27 @@ class SalesforceRPA:
         self.page.wait_for_timeout(2000)
 
     def is_logged_in(self) -> bool:
-        """Verifica se a tela do parceiro está carregada ou se caiu na tela de login."""
-        return "login" not in self.page.url.lower() and "partners" in self.page.url.lower()
+        """Verifica se o usuário já efetuou o login e está na área do parceiro."""
+        try:
+            # 1. Verifica todas as abas abertas no Chrome (caso tenha aberto em outra aba)
+            if self.context and self.context.pages:
+                for p in self.context.pages:
+                    url = p.url.lower()
+                    if "login" not in url and ("partners" in url or "lead" in url):
+                        self.page = p
+                        return True
+
+            # 2. Verifica a aba atual
+            url = self.page.url.lower()
+            if "login" not in url and ("partners" in url or "lead" in url):
+                return True
+
+            # 3. Verifica elementos típicos da tela autenticada
+            if self.page.locator('button:has-text("Novo Lead"), a:has-text("Leads"), a:has-text("Início")').count() > 0:
+                return True
+        except Exception:
+            pass
+        return False
 
     def split_razao_social(self, razao: str) -> Tuple[str, str]:
         """
