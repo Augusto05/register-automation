@@ -113,10 +113,17 @@ def update_heartbeat(state: str, action: str):
     # Sincroniza em segundo plano com a nuvem (Streamlit Cloud)
     _push_cloud_heartbeat(state, action, cadastrados, indisponiveis)
 
+def _get_cloud_url():
+    try:
+        from config import CLOUD_HEARTBEAT_URL
+        return CLOUD_HEARTBEAT_URL
+    except Exception:
+        return "https://api.restful-api.dev/objects/ff808181a09d98f701a140c660376b10"
+
 def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponiveis: int):
     """Envia o batimento para a nuvem de forma não-bloqueante (em thread)."""
-    from config import CLOUD_HEARTBEAT_URL
-    if not CLOUD_HEARTBEAT_URL:
+    cloud_url = _get_cloud_url()
+    if not cloud_url:
         return
 
     import threading
@@ -135,7 +142,7 @@ def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponive
                     "total_indisponiveis_hoje": indisponiveis
                 }
             }
-            requests.put(CLOUD_HEARTBEAT_URL, json=payload, timeout=4)
+            requests.put(cloud_url, json=payload, timeout=4)
         except Exception:
             pass
 
@@ -143,15 +150,15 @@ def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponive
 
 def _fetch_cloud_heartbeat():
     """Busca o batimento na nuvem se o robô estiver rodando em outra máquina."""
-    from config import CLOUD_HEARTBEAT_URL
-    if not CLOUD_HEARTBEAT_URL:
+    cloud_url = _get_cloud_url()
+    if not cloud_url:
         return None
 
     import requests
     import time
 
     try:
-        resp = requests.get(CLOUD_HEARTBEAT_URL, timeout=4)
+        resp = requests.get(cloud_url, timeout=4)
         if resp.status_code == 200:
             data = resp.json().get("data", {})
             last_ping_ts = data.get("last_ping", 0)
