@@ -1,49 +1,65 @@
 @echo off
-title Automação Salesforce C6 Bank
-chcp 65001 > nul
+setlocal
 cd /d "%~dp0"
 
+title Automacao Leads Salesforce C6
+
 echo ===================================================================
-echo     AUTOMAÇÃO DE LEADS SALESFORCE C6 BANK + DASHBOARD ONLINE
+echo     AUTOMACAO DE LEADS SALESFORCE C6 BANK
 echo ===================================================================
 echo.
 
-:: 1. Verifica se o Python está instalado
-where python >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo [ERRO] Python não encontrado!
-    echo Por favor, baixe e instale o Python em: https://www.python.org/downloads/
-    echo ATENÇÃO: Marque a opção "Add Python to PATH" durante a instalação.
+REM Verifica se python ou py esta disponivel
+set PYTHON_CMD=
+where py >nul 2>nul
+if %ERRORLEVEL% equ 0 (
+    set PYTHON_CMD=py
+) else (
+    where python >nul 2>nul
+    if %ERRORLEVEL% equ 0 (
+        set PYTHON_CMD=python
+    )
+)
+
+if "%PYTHON_CMD%"=="" (
+    echo [ERRO] Python nao foi encontrado nesta maquina!
+    echo.
+    echo Por favor, instale o Python:
+    echo 1. Baixe em: https://www.python.org/downloads/
+    echo 2. ATENCAO: Marque a opcao "Add python.exe to PATH" ao instalar!
     echo.
     pause
     exit /b 1
 )
 
-:: 2. Cria o ambiente virtual na primeira execução
+echo Usando: %PYTHON_CMD%
+
+REM Cria venv se nao existir
 if not exist "venv\Scripts\activate.bat" (
-    echo [1/3] Configurando ambiente virtual Python pela primeira vez...
-    python -m venv venv
-    if %ERRORLEVEL% neq 0 (
-        echo Falha ao criar venv. Tentando rodar com Python global...
+    echo [1/3] Criando ambiente virtual Python...
+    %PYTHON_CMD% -m venv venv
+    if errorlevel 1 (
+        echo Falha ao criar venv. Tentando continuar...
     )
 )
 
-:: 3. Ativa o ambiente virtual
+REM Ativa venv
 if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-:: 4. Instala dependências e navegador na primeira vez
+REM Instala dependencias na primeira vez
 if not exist "venv\.installed" (
-    echo [2/3] Instalando dependências (Playwright, Streamlit, Pandas)...
+    echo [2/3] Instalando dependencias (Playwright, Streamlit, Pandas)...
+    python -m pip install --upgrade pip
     pip install -r requirements.txt
     echo Instalando navegador Playwright Chromium...
     playwright install chromium
     echo ok > "venv\.installed"
 )
 
-:: 5. Executa a interface gráfica e o robô
-echo [3/3] Iniciando o Painel de Controle e o Robô...
+REM Inicia o painel e o robo
+echo [3/3] Iniciando o Painel de Controle e o Robo...
 python gui.py
 
 pause

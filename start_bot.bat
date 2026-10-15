@@ -1,27 +1,11 @@
 @echo off
-title RPA Leads Salesforce C6
-chcp 65001 > nul
-echo ========================================================
-echo   Iniciando Robo de Cadastro de Leads - Salesforce C6
-echo ========================================================
+setlocal
+cd /d "%~dp0"
+title Robo Leads Salesforce C6
 
-:: Verifica se o ambiente virtual existe, se nao, cria
-if not exist "venv" (
-    echo Criando ambiente virtual Python...
-    python -m venv venv
+if exist "venv\Scripts\activate.bat" (
+    call venv\Scripts\activate.bat
 )
 
-echo Ativando ambiente virtual...
-call venv\Scripts\activate
-
-echo Instalando / Atualizando dependencias...
-pip install -r requirements.txt
-
-echo Garantindo os navegadores do Playwright...
-playwright install chromium
-
-echo.
-echo Iniciando o robo 24/7...
 python main.py
-
 pause
