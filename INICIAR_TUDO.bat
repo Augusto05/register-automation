@@ -33,7 +33,17 @@ if exist "venv\Scripts\activate.bat" (
     call venv\Scripts\activate.bat
 )
 
-:: 4. Executa a interface gráfica e o robô
+:: 4. Instala dependências e navegador na primeira vez
+if not exist "venv\.installed" (
+    echo [2/3] Instalando dependências (Playwright, Streamlit, Pandas)...
+    pip install -r requirements.txt
+    echo Instalando navegador Playwright Chromium...
+    playwright install chromium
+    echo ok > "venv\.installed"
+)
+
+:: 5. Executa a interface gráfica e o robô
+echo [3/3] Iniciando o Painel de Controle e o Robô...
 python gui.py
 
 pause
