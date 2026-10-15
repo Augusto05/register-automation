@@ -32,20 +32,39 @@ def clean_phone(val: Any) -> str:
 
 def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_GID) -> List[Dict[str, Any]]:
     """
-    Lê a planilha online pública via exportação CSV.
+    Lê a planilha online (via Webhook do Apps Script ou CSV direto).
     Retorna apenas os leads pendentes de cadastro.
     """
-    if not spreadsheet_id or spreadsheet_id == "SEU_SPREADSHEET_ID_AQUI":
-        return []
+    df = None
 
-    csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
-    
+    # 1. Tenta via Webhook do Apps Script se configurado (ideal para planilhas corporativas restritas)
+    if APPS_SCRIPT_WEBHOOK_URL:
+        try:
+            resp = requests.get(APPS_SCRIPT_WEBHOOK_URL, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 1:
+                    headers = [str(h) for h in data[0]]
+                    rows = data[1:]
+                    df = pd.DataFrame(rows, columns=headers).astype(str)
+        except Exception as e:
+            print(f"[Sheets] Erro ao ler via Webhook: {e}")
+
+    # 2. Se não leu via Webhook, tenta ler via CSV público direto
+    if df is None:
+        if not spreadsheet_id or spreadsheet_id == "SEU_SPREADSHEET_ID_AQUI":
+            return []
+
+        csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
+        try:
+            response = requests.get(csv_url, timeout=15)
+            response.raise_for_status()
+            df = pd.read_csv(io.StringIO(response.content.decode("utf-8", errors="ignore")), dtype=str)
+        except Exception as e:
+            print(f"[Sheets] Erro ao carregar planilha online via CSV: {e}")
+            return []
+
     try:
-        response = requests.get(csv_url, timeout=15)
-        response.raise_for_status()
-        
-        # Lê o CSV decodificando UTF-8
-        df = pd.read_csv(io.StringIO(response.content.decode("utf-8", errors="ignore")), dtype=str)
         
         # Normaliza cabeçalhos (minúsculo, sem acentos e sem espaços extras)
         col_map = {}
