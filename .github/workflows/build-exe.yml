@@ -1,0 +1,35 @@
+name: Build Executavel Windows
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar codigo fonte
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias e PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Gerar Executavel Windows com PyInstaller
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name "RoboSalesforceC6" --add-data "config.py;." --add-data "db.py;." --add-data "rpa.py;." --add-data "sheets.py;." --add-data "dashboard.py;." --add-data "leads_history.db;." gui.py
+
+      - name: Publicar Executavel como Artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoboSalesforceC6-Windows-Exe
+          path: dist/RoboSalesforceC6
