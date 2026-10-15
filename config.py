@@ -25,3 +25,6 @@ CHROME_PROFILE_DIR = os.getenv("CHROME_PROFILE_DIR", str(BASE_DIR / "chrome_user
 
 # Banco SQLite local para deduplicação e histórico
 DB_PATH = str(BASE_DIR / "leads_history.db")
+
+# Endpoint em nuvem para sincronização do Heartbeat com o Streamlit Cloud
+CLOUD_HEARTBEAT_URL = os.getenv("CLOUD_HEARTBEAT_URL", "https://api.restful-api.dev/objects/ff808181a09d98f701a140c660376b10")

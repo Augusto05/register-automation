@@ -104,8 +104,23 @@ with col4:
 st.markdown("---")
 
 # Tabela e Histórico
-st.subheader("📋 Histórico Recente de Leads")
+st.subheader("📋 Leads e Histórico de Processamento")
 leads = get_all_leads()
+
+if not leads:
+    # Se não houver histórico local (ex: no Streamlit Cloud), carrega os leads diretamente da Planilha Online
+    from sheets import fetch_pending_leads
+    pending = fetch_pending_leads()
+    if pending:
+        leads = [{
+            "processed_at": "Pendente",
+            "cnpj": p["cnpj"],
+            "razao_social": p["razao_social"],
+            "telefone": p["telefone"],
+            "email": p["email"],
+            "status": "PENDENTE",
+            "error_message": "Aguardando processamento pelo robô"
+        } for p in pending]
 
 if leads:
     df = pd.DataFrame(leads)
@@ -113,7 +128,8 @@ if leads:
     # Filtros
     f_col1, f_col2 = st.columns([1, 2])
     with f_col1:
-        status_filter = st.selectbox("Filtrar por Status", ["Todos", "CADASTRADO", "INDISPONIVEL"])
+        status_options = ["Todos"] + sorted(list(df["status"].dropna().unique()))
+        status_filter = st.selectbox("Filtrar por Status", status_options)
     with f_col2:
         search_query = st.text_input("Buscar por CNPJ ou Razão Social", "")
 
@@ -125,7 +141,8 @@ if leads:
         df = df[df["cnpj"].str.lower().str.contains(query, na=False) | df["razao_social"].str.lower().str.contains(query, na=False)]
 
     # Exibição da tabela formatada
-    display_df = df[["processed_at", "cnpj", "razao_social", "telefone", "email", "status", "error_message"]].rename(columns={
+    cols_to_show = ["processed_at", "cnpj", "razao_social", "telefone", "email", "status", "error_message"]
+    display_df = df[cols_to_show].rename(columns={
         "processed_at": "Data/Hora",
         "cnpj": "CNPJ",
         "razao_social": "Razão Social",
@@ -146,4 +163,4 @@ if leads:
         mime="text/csv"
     )
 else:
-    st.info("Nenhum lead processado ainda. O histórico aparecerá assim que a RPA iniciar o processamento da planilha.")
+    st.info("Nenhum lead encontrado na planilha online.")

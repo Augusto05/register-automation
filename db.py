@@ -102,6 +102,66 @@ def update_heartbeat(state: str, action: str):
     conn.commit()
     conn.close()
 
+    # Sincroniza em segundo plano com a nuvem (Streamlit Cloud)
+    _push_cloud_heartbeat(state, action, cadastrados, indisponiveis)
+
+def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponiveis: int):
+    """Envia o batimento para a nuvem de forma não-bloqueante (em thread)."""
+    from config import CLOUD_HEARTBEAT_URL
+    if not CLOUD_HEARTBEAT_URL:
+        return
+
+    import threading
+    import requests
+    import time
+
+    def _worker():
+        try:
+            payload = {
+                "name": "c6_bot_heartbeat",
+                "data": {
+                    "state": state,
+                    "current_action": action,
+                    "last_ping": time.time(),
+                    "total_cadastrados_hoje": cadastrados,
+                    "total_indisponiveis_hoje": indisponiveis
+                }
+            }
+            requests.put(CLOUD_HEARTBEAT_URL, json=payload, timeout=4)
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+def _fetch_cloud_heartbeat():
+    """Busca o batimento na nuvem se o robô estiver rodando em outra máquina."""
+    from config import CLOUD_HEARTBEAT_URL
+    if not CLOUD_HEARTBEAT_URL:
+        return None
+
+    import requests
+    import time
+
+    try:
+        resp = requests.get(CLOUD_HEARTBEAT_URL, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            last_ping_ts = data.get("last_ping", 0)
+            diff = time.time() - last_ping_ts
+            if diff < 45: # Ativo nos últimos 45 segundos
+                return {
+                    "state": data.get("state", "OCIOSO"),
+                    "is_alive": True,
+                    "current_action": data.get("current_action", "Ativo na nuvem"),
+                    "last_ping": datetime.fromtimestamp(last_ping_ts).strftime("%Y-%m-%d %H:%M:%S"),
+                    "total_cadastrados_hoje": data.get("total_cadastrados_hoje", 0),
+                    "total_indisponiveis_hoje": data.get("total_indisponiveis_hoje", 0),
+                    "seconds_since_ping": int(diff)
+                }
+    except Exception:
+        pass
+    return None
+
 def get_stats_today():
     """Retorna estatísticas consolidadas do dia."""
     conn = get_connection()
@@ -122,6 +182,15 @@ def get_stats_today():
         "indisponiveis": row["indisponiveis"] or 0
     }
     conn.close()
+
+    # Se estiver vazio localmente (ex: no Streamlit Cloud), tenta ler do cloud heartbeat
+    if stats["total"] == 0:
+        cloud_hb = _fetch_cloud_heartbeat()
+        if cloud_hb and (cloud_hb["total_cadastrados_hoje"] > 0 or cloud_hb["total_indisponiveis_hoje"] > 0):
+            cad = cloud_hb["total_cadastrados_hoje"]
+            ind = cloud_hb["total_indisponiveis_hoje"]
+            return {"total": cad + ind, "cadastrados": cad, "indisponiveis": ind}
+
     return stats
 
 def get_all_leads():
@@ -134,7 +203,7 @@ def get_all_leads():
     return rows
 
 def get_heartbeat():
-    """Retorna o estado do heartbeat do robô, validando se ele está realmente ativo."""
+    """Retorna o estado do heartbeat do robô, validando local e em nuvem."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -146,6 +215,9 @@ def get_heartbeat():
     conn.close()
     
     if not row:
+        cloud = _fetch_cloud_heartbeat()
+        if cloud:
+            return cloud
         return {
             "state": "DESLIGADO",
             "is_alive": False,
@@ -158,6 +230,11 @@ def get_heartbeat():
     d = dict(row)
     seconds_since = d.get("seconds_since_ping")
     if seconds_since is None or seconds_since > 40:
+        # Tenta verificar se há batimento ativo na nuvem (quando o dashboard roda no Streamlit Cloud)
+        cloud = _fetch_cloud_heartbeat()
+        if cloud and cloud.get("is_alive"):
+            return cloud
+
         d["is_alive"] = False
         d["state"] = "DESLIGADO"
         d["current_action"] = "Robô desligado / offline (aguardando inicialização)"
