@@ -74,7 +74,10 @@ def run_automation_loop():
     rpa.start()
 
     logging.info("Navegador iniciado. Acessando Salesforce Leads...")
-    rpa.navigate_to_leads()
+    try:
+        rpa.navigate_to_leads()
+    except Exception as e:
+        logging.warning(f"Aviso inicial ao abrir Leads: {e}")
     
     # Verificação explícita de login
     if not rpa.is_logged_in():
@@ -83,6 +86,11 @@ def run_automation_loop():
             update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
             time.sleep(3)
         logging.info("Login detectado com sucesso!")
+        # Uma vez logado, navega para a tela de leads
+        try:
+            rpa.navigate_to_leads()
+        except Exception:
+            pass
 
     update_heartbeat("OCIOSO", "Login autenticado! Iniciando monitoramento da planilha...")
     last_keep_alive = time.time()

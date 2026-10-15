@@ -56,12 +56,16 @@ class SalesforceRPA:
 
     def navigate_to_leads(self):
         """Navega para a tela de Leads do C6 Salesforce."""
-        current_url = self.page.url
-        if "lead/Lead" not in current_url:
-            self.page.goto(SALESFORCE_LEADS_URL, wait_until="networkidle")
-        else:
-            self.page.goto(SALESFORCE_LEADS_URL, wait_until="domcontentloaded")
-        self.page.wait_for_timeout(2500)
+        try:
+            current_url = self.page.url
+            if "lead/Lead" not in current_url:
+                self.page.goto(SALESFORCE_LEADS_URL, wait_until="domcontentloaded", timeout=25000)
+            else:
+                self.page.goto(SALESFORCE_LEADS_URL, wait_until="domcontentloaded", timeout=15000)
+        except Exception:
+            # Em SPAs complexas como Salesforce, o carregamento do DOM é suficiente
+            pass
+        self.page.wait_for_timeout(2000)
 
     def is_logged_in(self) -> bool:
         """Verifica se a tela do parceiro está carregada ou se caiu na tela de login."""
