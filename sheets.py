@@ -1,0 +1,113 @@
+import io
+import re
+import requests
+import pandas as pd
+from typing import List, Dict, Any, Optional
+from config import SPREADSHEET_ID, SHEET_GID, APPS_SCRIPT_WEBHOOK_URL
+
+def clean_cnpj(val: Any) -> str:
+    """Extrai apenas os números do CNPJ."""
+    if not val:
+        return ""
+    return re.sub(r"\D", "", str(val))
+
+def clean_phone(val: Any) -> str:
+    """Higieniza telefone garantindo o formato 55 + 11 dígitos."""
+    if not val:
+        return ""
+    digits = re.sub(r"\D", "", str(val))
+    # Se já começar com 55 e tiver 13 dígitos
+    if digits.startswith("55") and len(digits) == 13:
+        return digits
+    # Se tiver 11 dígitos (DDD + 9 dígitos), adiciona 55
+    if len(digits) == 11:
+        return f"55{digits}"
+    # Se tiver 10 dígitos (DDD + 8 dígitos)
+    if len(digits) == 10:
+        return f"55{digits}"
+    # Caso geral: adiciona 55 se ainda não tiver
+    if not digits.startswith("55"):
+        digits = f"55{digits}"
+    return digits
+
+def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_GID) -> List[Dict[str, Any]]:
+    """
+    Lê a planilha online pública via exportação CSV.
+    Retorna apenas os leads pendentes de cadastro.
+    """
+    if not spreadsheet_id or spreadsheet_id == "SEU_SPREADSHEET_ID_AQUI":
+        return []
+
+    csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
+    
+    try:
+        response = requests.get(csv_url, timeout=15)
+        response.raise_for_status()
+        
+        # Lê o CSV decodificando UTF-8
+        df = pd.read_csv(io.StringIO(response.content.decode("utf-8", errors="ignore")), dtype=str)
+        
+        # Normaliza cabeçalhos (minúsculo, sem acentos e sem espaços extras)
+        col_map = {}
+        for c in df.columns:
+            c_norm = c.strip().lower()
+            if "cnpj" in c_norm:
+                col_map["cnpj"] = c
+            elif "razao" in c_norm or "social" in c_norm or "empresa" in c_norm or "nome" in c_norm:
+                if "cnpj" not in c_norm:
+                    col_map["razao_social"] = c
+            elif "mail" in c_norm:
+                col_map["email"] = c
+            elif "fone" in c_norm or "tel" in c_norm or "cel" in c_norm or "whatsapp" in c_norm:
+                col_map["telefone"] = c
+            elif "status" in c_norm:
+                col_map["status"] = c
+
+        pending = []
+        for idx, row in df.iterrows():
+            cnpj_raw = row.get(col_map.get("cnpj", ""), "")
+            cnpj = clean_cnpj(cnpj_raw)
+            if not cnpj:
+                continue
+
+            # Verifica status se houver coluna de status
+            status_val = str(row.get(col_map.get("status", ""), "")).strip().upper()
+            if status_val in ["CADASTRADO", "INDISPONÍVEL", "INDISPONIVEL"]:
+                continue
+
+            razao_social = str(row.get(col_map.get("razao_social", ""), "")).strip()
+            email = str(row.get(col_map.get("email", ""), "")).strip()
+            telefone = clean_phone(row.get(col_map.get("telefone", ""), ""))
+
+            pending.append({
+                "row_index": idx + 2, # Linha na planilha (1-indexed + cabeçalho)
+                "cnpj": cnpj,
+                "razao_social": razao_social,
+                "email": email,
+                "telefone": telefone,
+                "status_atual": status_val
+            })
+
+        return pending
+
+    except Exception as e:
+        print(f"[Sheets] Erro ao carregar planilha online: {e}")
+        return []
+
+def update_sheet_status(cnpj: str, status: str, error_message: str = ""):
+    """
+    Envia a atualização de status para a planilha online se o Apps Script Webhook estiver configurado.
+    """
+    if not APPS_SCRIPT_WEBHOOK_URL:
+        return
+
+    payload = {
+        "cnpj": cnpj,
+        "status": status,
+        "error_message": error_message
+    }
+
+    try:
+        requests.post(APPS_SCRIPT_WEBHOOK_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"[Sheets] Erro ao sincronizar status na planilha online: {e}")
