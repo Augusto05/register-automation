@@ -16,10 +16,24 @@ Basta dar **duplo clique** no arquivo:
 
 O que ele faz automaticamente:
 1. Configura o ambiente e dependências;
-2. Abre a janela do **Dashboard Streamlit** no navegador para acompanhar o progresso;
-3. Abre o **Google Chrome** diretamente na página de Leads do C6 Bank;
-4. Se for a primeira vez, a pessoa apenas digita seu login/senha e 2FA uma única vez;
-5. O robô detecta o login e inicia o processamento 24 horas por dia!
+2. Valida a assinatura do escritório na **LeadSale** (usando o token `lri_...` salvo em `leadsale_token.txt` ou configurado no botão **🔑 Configurar Token** do painel);
+3. Abre a janela do **Dashboard Streamlit** no navegador para acompanhar o progresso;
+4. Abre o **Google Chrome** diretamente na página de Leads do C6 Bank;
+5. Se for a primeira vez, a pessoa apenas digita seu login/senha e 2FA uma única vez;
+6. O robô detecta o login e inicia o processamento 24 horas por dia!
+
+---
+
+## 🔐 Validação de Assinatura na LeadSale (`leadsale_token.txt`)
+
+O robô só opera em escritórios com assinatura ativa na **LeadSale** (`https://leadsale.com.br/api/robo_indicacao/status`), conferindo a liberação ao abrir e depois 1 vez por dia.
+
+1. **Onde guardar o Token**:
+   - Você pode clicar no botão **`🔑 Configurar Token`** dentro do Painel de Controle e colar sua chave `lri_...`, **ou** criar um arquivo de texto chamado `leadsale_token.txt` na pasta do robô contendo apenas o token do escritório.
+2. **Três cuidados importantes**:
+   - **Não pergunte mais de uma vez por hora com token errado**: Erros seguidos de token bloqueiam a internet do escritório por 1 hora.
+   - **Liberação de Internet (IP)**: Se aparecer `"Robô não liberado para este escritório. Fale com a LeadSale."` logo na primeira vez, avise a LeadSale — ela vê na hora qual internet tentou e libera com um clique.
+   - **Sigilo do Token**: O token é uma senha confidencial. Não envie em grupos e nunca o comite no Git (`leadsale_token.txt` já está protegido no `.gitignore` e oculto nos logs e na tela).
 
 ### No Mac / Linux:
 Abra o terminal na pasta e execute:

@@ -24,12 +24,12 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Gerar Executavel Windows com PyInstaller
+      - name: Gerar Executavel Windows (.exe unico) com PyInstaller
         run: |
-          pyinstaller --noconfirm --onedir --windowed --name "RoboSalesforceC6" --add-data "config.py;." --add-data "db.py;." --add-data "rpa.py;." --add-data "sheets.py;." --add-data "dashboard.py;." --add-data "leads_history.db;." gui.py
+          pyinstaller --noconfirm --onefile --windowed --name "RoboIndicacaoLeadSale" --collect-all playwright --hidden-import config --hidden-import db --hidden-import license --hidden-import main --hidden-import rpa --hidden-import sheets gui.py
 
       - name: Publicar Executavel como Artefato
         uses: actions/upload-artifact@v4
         with:
-          name: RoboSalesforceC6-Windows-Exe
-          path: dist/RoboSalesforceC6
+          name: RoboIndicacaoLeadSale-Windows-Exe
+          path: dist/RoboIndicacaoLeadSale.exe

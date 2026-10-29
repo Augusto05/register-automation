@@ -23,7 +23,7 @@ class SalesforceRPA:
         ]
 
         try:
-            # Tenta abrir o Google Chrome instalado na máquina Windows
+            # 1. Tenta abrir o Google Chrome instalado na máquina do cliente
             self.context = self.playwright.chromium.launch_persistent_context(
                 user_data_dir=CHROME_PROFILE_DIR,
                 channel="chrome",
@@ -32,13 +32,23 @@ class SalesforceRPA:
                 no_viewport=True
             )
         except Exception:
-            # Fallback para o Chromium integrado do Playwright caso o Chrome padrão dê erro
-            self.context = self.playwright.chromium.launch_persistent_context(
-                user_data_dir=CHROME_PROFILE_DIR,
-                headless=self.headless,
-                args=launch_args,
-                no_viewport=True
-            )
+            try:
+                # 2. Fallback para o Microsoft Edge nativo do Windows caso o Chrome não esteja instalado
+                self.context = self.playwright.chromium.launch_persistent_context(
+                    user_data_dir=CHROME_PROFILE_DIR,
+                    channel="msedge",
+                    headless=self.headless,
+                    args=launch_args,
+                    no_viewport=True
+                )
+            except Exception:
+                # 3. Fallback para o Chromium integrado do Playwright
+                self.context = self.playwright.chromium.launch_persistent_context(
+                    user_data_dir=CHROME_PROFILE_DIR,
+                    headless=self.headless,
+                    args=launch_args,
+                    no_viewport=True
+                )
 
         if len(self.context.pages) > 0:
             self.page = self.context.pages[0]

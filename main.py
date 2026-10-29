@@ -4,6 +4,7 @@ import random
 import logging
 from datetime import datetime
 from config import (
+    BASE_DIR,
     INTERVAL_BETWEEN_LEADS,
     INTERVAL_JITTER,
     IDLE_KEEP_ALIVE_INTERVAL
@@ -19,14 +20,18 @@ from db import (
 )
 from sheets import fetch_pending_leads, update_sheet_status
 from rpa import SalesforceRPA
+from license import LicenseController, TokenLogSanitizer
+
+_sanitizer = TokenLogSanitizer()
+_stream_handler = logging.StreamHandler()
+_stream_handler.addFilter(_sanitizer)
+_file_handler = logging.FileHandler(str(BASE_DIR / "bot_execution.log"), encoding="utf-8")
+_file_handler.addFilter(_sanitizer)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("bot_execution.log", encoding="utf-8")
-    ]
+    handlers=[_stream_handler, _file_handler]
 )
 
 def prevent_windows_sleep():
@@ -41,14 +46,19 @@ def prevent_windows_sleep():
         except Exception as e:
             logging.warning(f"[Sistema] Aviso ao configurar anti-suspensão: {e}")
 
-def wait_with_heartbeat(seconds: int, action_prefix: str) -> bool:
+def wait_with_heartbeat(seconds: int, action_prefix: str, license_ctrl: LicenseController = None) -> bool:
     """
     Aguarda o intervalo atualizando o batimento a cada 2 segundos.
-    Respeita pausas e sinal de verificação imediata.
-    Retorna True se completou o tempo, ou False se foi interrompido.
+    Respeita pausas, sinal de verificação imediata e checagem periódica de licença.
+    Retorna True se pode prosseguir, ou False se o robô foi bloqueado pela LeadSale.
     """
     start = time.time()
     while time.time() - start < seconds:
+        if license_ctrl is not None:
+            liberado, _ = license_ctrl.verificar_se_necessario()
+            if not liberado:
+                return False
+
         # Se o usuário clicou em forçar verificação
         if consume_force_check():
             logging.info("[Controle] Verificação imediata solicitada pelo usuário.")
@@ -68,6 +78,15 @@ def run_automation_loop():
     logging.info("Iniciando Automação de Leads Salesforce C6 Bank (24/7)...")
     prevent_windows_sleep()
     init_db()
+
+    # 1. Conferência obrigatória da assinatura LeadSale ao abrir
+    update_heartbeat("INICIANDO", "Conferindo assinatura do escritório na LeadSale...")
+    license_ctrl = LicenseController(persist_db=True)
+    liberado, motivo = license_ctrl.verificar_se_necessario()
+    if not liberado:
+        logging.error(f"Execução interrompida na validação inicial: {motivo}")
+        return
+
     update_heartbeat("INICIANDO", "Carregando navegador Chrome com perfil persistente...")
 
     rpa = SalesforceRPA(headless=False)
@@ -84,6 +103,10 @@ def run_automation_loop():
     if not rpa.is_logged_in() and not is_manual_login_confirmed():
         logging.warning("ATENÇÃO: Faça o login na janela aberta do Chrome (usuário, senha e 2FA).")
         while not rpa.is_logged_in() and not is_manual_login_confirmed():
+            liberado, _ = license_ctrl.verificar_se_necessario()
+            if not liberado:
+                rpa.stop()
+                return
             update_heartbeat("AGUARDANDO_LOGIN", "Aguardando login no Chrome... (faça login na janela aberta)")
             time.sleep(2)
         logging.info("Login detectado com sucesso!")
@@ -98,8 +121,18 @@ def run_automation_loop():
 
     while True:
         try:
+            # Verifica assinatura LeadSale (1x por dia ou 1x por hora em contingência)
+            liberado, _ = license_ctrl.verificar_se_necessario()
+            if not liberado:
+                rpa.stop()
+                break
+
             # Verifica se o robô foi colocado em pausa pelo usuário
             while is_bot_paused():
+                liberado, _ = license_ctrl.verificar_se_necessario()
+                if not liberado:
+                    rpa.stop()
+                    return
                 update_heartbeat("PAUSADO", "Robô pausado. Clique em 'Retomar' para voltar.")
                 time.sleep(2)
 
@@ -113,8 +146,18 @@ def run_automation_loop():
                 logging.info(f"Encontrados {len(unprocessed_leads)} leads pendentes para cadastro.")
                 
                 for idx, lead in enumerate(unprocessed_leads):
+                    # Verifica licença antes de cada lead do lote
+                    liberado, _ = license_ctrl.verificar_se_necessario()
+                    if not liberado:
+                        rpa.stop()
+                        return
+
                     # Verifica se o usuário pausou durante o processamento do lote
                     while is_bot_paused():
+                        liberado, _ = license_ctrl.verificar_se_necessario()
+                        if not liberado:
+                            rpa.stop()
+                            return
                         update_heartbeat("PAUSADO", "Robô pausado entre leads. Clique em Retomar.")
                         time.sleep(1)
 
@@ -151,7 +194,10 @@ def run_automation_loop():
                     if idx < len(unprocessed_leads) - 1:
                         delay = INTERVAL_BETWEEN_LEADS + random.randint(-INTERVAL_JITTER, INTERVAL_JITTER)
                         logging.info(f"Aguardando {delay}s (3 min) antes do próximo lead para evitar bloqueios...")
-                        wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit")
+                        pode_continuar = wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit", license_ctrl=license_ctrl)
+                        if not pode_continuar:
+                            rpa.stop()
+                            return
 
             else:
                 # Fila vazia: momento de ociosidade

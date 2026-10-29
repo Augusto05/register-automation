@@ -12,6 +12,10 @@ chrome_user_data/
 
 # Sensitive / Local Data
 .env
+leadsale_token.txt
+leadsale_token.txt.txt
+leads_history.db
+
 
 # OS
 .DS_Store

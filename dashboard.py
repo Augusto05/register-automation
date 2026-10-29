@@ -44,7 +44,7 @@ if auto_refresh:
     st.sidebar.caption(f"Última atualização: {datetime.now().strftime('%H:%M:%S')}")
 
 # Header
-st.title("🤖 Monitor de Automação de Leads - C6 Bank")
+st.title("🤖 Monitor de Automação de Leads - LeadSale / C6 Bank")
 st.markdown("Acompanhamento em tempo real da RPA de indicação de leads no Salesforce.")
 
 # Heartbeat e Status do Robô
@@ -52,30 +52,62 @@ hb = get_heartbeat() or {}
 bot_state = hb.get("state", "DESCONHECIDO")
 current_action = hb.get("current_action", "Aguardando informações...")
 last_ping = hb.get("last_ping", "N/A")
+lic_status = hb.get("license_status", "VERIFICANDO")
+lic_msg = hb.get("license_message", "Verificando assinatura na LeadSale...")
+last_lic_ok = hb.get("last_license_ok", 0)
 
 status_colors = {
     "PROCESSANDO": "#3B82F6",
+    "CONSULTANDO_PLANILHA": "#3B82F6",
     "AGUARDANDO_INTERVALO": "#F59E0B",
     "OCIOSO": "#10B981",
     "AGUARDANDO_LOGIN": "#8B5CF6",
     "PAUSADO": "#F59E0B",
+    "BLOQUEADO": "#EF4444",
+    "TOKEN_AUSENTE": "#EF4444",
     "ERRO": "#EF4444",
     "DESLIGADO": "#EF4444",
     "PARADO": "#6B7280"
 }
 state_color = status_colors.get(bot_state, "#6B7280")
 
+lic_colors = {
+    "ATIVA": ("#10B981", "🟢 ATIVA / LIBERADO"),
+    "CONTINGENCIA": ("#F59E0B", "🟡 CONTINGÊNCIA (NOVA TENTATIVA EM 1H)"),
+    "BLOQUEADO": ("#EF4444", "🔴 NÃO LIBERADO"),
+    "TOKEN_AUSENTE": ("#EF4444", "🔑 TOKEN NÃO CONFIGURADO"),
+    "VERIFICANDO": ("#6B7280", "⏳ VERIFICANDO...")
+}
+lic_color, lic_label = lic_colors.get(lic_status, ("#6B7280", lic_status))
+
+if bot_state == "BLOQUEADO" or lic_status == "BLOQUEADO":
+    st.error(
+        f"🚫 **{lic_msg or 'Robô não liberado para este escritório. Fale com a LeadSale.'}**\n\n"
+        "💡 *Dica: Se este for o primeiro acesso do escritório, avise a LeadSale para liberar a internet (IP) com um clique.*"
+    )
+elif bot_state == "TOKEN_AUSENTE" or lic_status == "TOKEN_AUSENTE":
+    st.warning(
+        "🔑 **Token da LeadSale não configurado.**\n\n"
+        "Salve o seu token (`lri_...`) no arquivo `leadsale_token.txt` na pasta do robô ou clique em **Configurar Token** no Painel de Controle."
+    )
+
+last_lic_str = datetime.fromtimestamp(last_lic_ok).strftime("%d/%m/%Y %H:%M") if last_lic_ok and float(last_lic_ok) > 0 else "Pendente"
+
 st.markdown(f"""
 <div style="background-color: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px 20px; margin-bottom: 25px;">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
             <span style="color: #9CA3AF; font-size: 0.9rem;">Status do Robô:</span>
-            <span style="background-color: {state_color}22; color: {state_color}; border: 1px solid {state_color}; padding: 3px 10px; border-radius: 6px; font-weight: bold; margin-left: 8px;">
+            <span style="background-color: {state_color}22; color: {state_color}; border: 1px solid {state_color}; padding: 3px 10px; border-radius: 6px; font-weight: bold; margin-left: 6px; margin-right: 16px;">
                 {bot_state}
+            </span>
+            <span style="color: #9CA3AF; font-size: 0.9rem;">Assinatura LeadSale:</span>
+            <span style="background-color: {lic_color}22; color: {lic_color}; border: 1px solid {lic_color}; padding: 3px 10px; border-radius: 6px; font-weight: bold; margin-left: 6px;">
+                {lic_label}
             </span>
         </div>
         <div style="color: #9CA3AF; font-size: 0.85rem;">
-            Último batimento: <strong>{last_ping}</strong>
+            Última confirmação LeadSale: <strong>{last_lic_str}</strong> &nbsp;|&nbsp; Último batimento: <strong>{last_ping}</strong>
         </div>
     </div>
     <div style="margin-top: 10px; font-size: 1.05rem; color: #F3F4F6;">

@@ -30,28 +30,50 @@ def init_db():
     CREATE TABLE IF NOT EXISTS bot_heartbeat (
         id INTEGER PRIMARY KEY,
         last_ping TIMESTAMP,
-        state TEXT, -- 'INICIANDO', 'AGUARDANDO_LOGIN', 'PROCESSANDO', 'AGUARDANDO_INTERVALO', 'OCIOSO', 'PAUSADO', 'ERRO'
+        state TEXT, -- 'INICIANDO', 'AGUARDANDO_LOGIN', 'PROCESSANDO', 'AGUARDANDO_INTERVALO', 'OCIOSO', 'PAUSADO', 'ERRO', 'BLOQUEADO', 'TOKEN_AUSENTE'
         current_action TEXT,
         total_cadastrados_hoje INTEGER DEFAULT 0,
         total_indisponiveis_hoje INTEGER DEFAULT 0,
         is_paused INTEGER DEFAULT 0,
         force_check INTEGER DEFAULT 0,
-        manual_login INTEGER DEFAULT 0
+        manual_login INTEGER DEFAULT 0,
+        license_status TEXT DEFAULT 'VERIFICANDO',
+        license_message TEXT DEFAULT 'Verificando assinatura na LeadSale...',
+        last_license_ok REAL DEFAULT 0,
+        next_license_check REAL DEFAULT 0
     )
     """)
 
     # Migrações seguras caso a tabela já exista na máquina do usuário
-    for col in ["is_paused", "force_check", "manual_login"]:
+    migrations = [
+        ("is_paused", "INTEGER DEFAULT 0"),
+        ("force_check", "INTEGER DEFAULT 0"),
+        ("manual_login", "INTEGER DEFAULT 0"),
+        ("license_status", "TEXT DEFAULT 'VERIFICANDO'"),
+        ("license_message", "TEXT DEFAULT 'Verificando assinatura na LeadSale...'"),
+        ("last_license_ok", "REAL DEFAULT 0"),
+        ("next_license_check", "REAL DEFAULT 0")
+    ]
+    for col, col_def in migrations:
         try:
-            cursor.execute(f"ALTER TABLE bot_heartbeat ADD COLUMN {col} INTEGER DEFAULT 0")
+            cursor.execute(f"ALTER TABLE bot_heartbeat ADD COLUMN {col} {col_def}")
         except Exception:
             pass
 
     cursor.execute("SELECT COUNT(*) FROM bot_heartbeat WHERE id = 1")
     if cursor.fetchone()[0] == 0:
         cursor.execute("""
-        INSERT INTO bot_heartbeat (id, last_ping, state, current_action, total_cadastrados_hoje, total_indisponiveis_hoje, is_paused, force_check, manual_login)
-        VALUES (1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado', 0, 0, 0, 0, 0)
+        INSERT INTO bot_heartbeat (
+            id, last_ping, state, current_action,
+            total_cadastrados_hoje, total_indisponiveis_hoje,
+            is_paused, force_check, manual_login,
+            license_status, license_message, last_license_ok, next_license_check
+        )
+        VALUES (
+            1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado',
+            0, 0, 0, 0, 0,
+            'VERIFICANDO', 'Verificando assinatura na LeadSale...', 0, 0
+        )
         """)
 
     conn.commit()
@@ -108,10 +130,69 @@ def update_heartbeat(state: str, action: str):
     WHERE id = 1
     """, (state, action, cadastrados, indisponiveis))
     conn.commit()
+
+    cursor.execute("SELECT license_status, license_message, last_license_ok FROM bot_heartbeat WHERE id = 1")
+    lic_row = cursor.fetchone()
+    lic_status = lic_row["license_status"] if lic_row and "license_status" in lic_row.keys() else "VERIFICANDO"
+    lic_msg = lic_row["license_message"] if lic_row and "license_message" in lic_row.keys() else ""
+    lic_ok = lic_row["last_license_ok"] if lic_row and "last_license_ok" in lic_row.keys() else 0
     conn.close()
 
     # Sincroniza em segundo plano com a nuvem (Streamlit Cloud)
-    _push_cloud_heartbeat(state, action, cadastrados, indisponiveis)
+    _push_cloud_heartbeat(state, action, cadastrados, indisponiveis, lic_status, lic_msg, lic_ok)
+
+def update_license_state(status: str, message: str, last_ok: float = None, next_check: float = None):
+    """Atualiza o status de validação da assinatura LeadSale no banco local."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        if last_ok is not None and next_check is not None:
+            cursor.execute("""
+                UPDATE bot_heartbeat
+                SET license_status = ?, license_message = ?, last_license_ok = ?, next_license_check = ?
+                WHERE id = 1
+            """, (status, message, last_ok, next_check))
+        elif next_check is not None:
+            cursor.execute("""
+                UPDATE bot_heartbeat
+                SET license_status = ?, license_message = ?, next_license_check = ?
+                WHERE id = 1
+            """, (status, message, next_check))
+        else:
+            cursor.execute("""
+                UPDATE bot_heartbeat
+                SET license_status = ?, license_message = ?
+                WHERE id = 1
+            """, (status, message))
+        conn.commit()
+    except Exception:
+        pass
+    conn.close()
+
+def get_license_state() -> dict:
+    """Retorna os metadados de validação da assinatura LeadSale."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    result = {
+        "license_status": "VERIFICANDO",
+        "license_message": "Verificando assinatura na LeadSale...",
+        "last_license_ok": 0.0,
+        "next_license_check": 0.0
+    }
+    try:
+        cursor.execute("SELECT license_status, license_message, last_license_ok, next_license_check FROM bot_heartbeat WHERE id = 1")
+        row = cursor.fetchone()
+        if row:
+            result = {
+                "license_status": row["license_status"] or "VERIFICANDO",
+                "license_message": row["license_message"] or "",
+                "last_license_ok": float(row["last_license_ok"] or 0.0),
+                "next_license_check": float(row["next_license_check"] or 0.0)
+            }
+    except Exception:
+        pass
+    conn.close()
+    return result
 
 def _get_cloud_url():
     try:
@@ -120,7 +201,15 @@ def _get_cloud_url():
     except Exception:
         return "https://api.restful-api.dev/objects/ff808181a09d98f701a140c660376b10"
 
-def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponiveis: int):
+def _push_cloud_heartbeat(
+    state: str,
+    action: str,
+    cadastrados: int,
+    indisponiveis: int,
+    license_status: str = "VERIFICANDO",
+    license_message: str = "",
+    last_license_ok: float = 0
+):
     """Envia o batimento para a nuvem de forma não-bloqueante (em thread)."""
     cloud_url = _get_cloud_url()
     if not cloud_url:
@@ -139,7 +228,10 @@ def _push_cloud_heartbeat(state: str, action: str, cadastrados: int, indisponive
                     "current_action": action,
                     "last_ping": time.time(),
                     "total_cadastrados_hoje": cadastrados,
-                    "total_indisponiveis_hoje": indisponiveis
+                    "total_indisponiveis_hoje": indisponiveis,
+                    "license_status": license_status,
+                    "license_message": license_message,
+                    "last_license_ok": last_license_ok
                 }
             }
             requests.put(cloud_url, json=payload, timeout=4)
@@ -163,14 +255,17 @@ def _fetch_cloud_heartbeat():
             data = resp.json().get("data", {})
             last_ping_ts = data.get("last_ping", 0)
             diff = time.time() - last_ping_ts
-            if diff < 45: # Ativo nos últimos 45 segundos
+            if diff < 45 or data.get("state") in ("BLOQUEADO", "TOKEN_AUSENTE"):
                 return {
                     "state": data.get("state", "OCIOSO"),
-                    "is_alive": True,
+                    "is_alive": diff < 45,
                     "current_action": data.get("current_action", "Ativo na nuvem"),
-                    "last_ping": datetime.fromtimestamp(last_ping_ts).strftime("%Y-%m-%d %H:%M:%S"),
+                    "last_ping": datetime.fromtimestamp(last_ping_ts).strftime("%Y-%m-%d %H:%M:%S") if last_ping_ts else "N/A",
                     "total_cadastrados_hoje": data.get("total_cadastrados_hoje", 0),
                     "total_indisponiveis_hoje": data.get("total_indisponiveis_hoje", 0),
+                    "license_status": data.get("license_status", "VERIFICANDO"),
+                    "license_message": data.get("license_message", ""),
+                    "last_license_ok": data.get("last_license_ok", 0),
                     "seconds_since_ping": int(diff)
                 }
     except Exception:
@@ -245,9 +340,14 @@ def get_heartbeat():
     d = dict(row)
     seconds_since = d.get("seconds_since_ping")
     if seconds_since is None or seconds_since > 40:
+        # Se o robô parou por bloqueio de licença ou falta de token, preserva esse estado na tela
+        if d.get("state") in ("BLOQUEADO", "TOKEN_AUSENTE"):
+            d["is_alive"] = False
+            return d
+
         # Tenta verificar se há batimento ativo na nuvem (quando o dashboard roda no Streamlit Cloud)
         cloud = _fetch_cloud_heartbeat()
-        if cloud and cloud.get("is_alive"):
+        if cloud and (cloud.get("is_alive") or cloud.get("state") in ("BLOQUEADO", "TOKEN_AUSENTE")):
             return cloud
 
         d["is_alive"] = False
