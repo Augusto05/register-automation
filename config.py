@@ -20,7 +20,7 @@ SHEET_GID = os.getenv("SHEET_GID", "0") # ID da aba (aba 1 costuma ser 0)
 APPS_SCRIPT_WEBHOOK_URL = os.getenv("APPS_SCRIPT_WEBHOOK_URL", "https://script.google.com/macros/s/AKfycbyZ0ZkCwCIhiJZOHaC_wufoGGSkndZlrnMx7v_EHNv1NxYruK38fKK7On5ugzwNzIW1/exec")
 
 # Configurações de Delays (em segundos)
-INTERVAL_BETWEEN_LEADS = 180  # 3 minutos entre leads com fila acumulada
+INTERVAL_BETWEEN_LEADS = 80   # 1 minuto e 20 segundos entre leads com fila acumulada
 INTERVAL_JITTER = 10          # Variação aleatória (+/- 10s) para humanização
 IDLE_KEEP_ALIVE_INTERVAL = 240 # 4 minutos para ping anti-logoff quando a fila estiver vazia
 

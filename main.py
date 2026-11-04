@@ -190,10 +190,10 @@ def run_automation_loop():
 
                     last_keep_alive = time.time()
 
-                    # Se ainda restam leads nesta rodada, aguarda o intervalo de 3 minutos
+                    # Se ainda restam leads nesta rodada, aguarda o intervalo (1m20s)
                     if idx < len(unprocessed_leads) - 1:
                         delay = INTERVAL_BETWEEN_LEADS + random.randint(-INTERVAL_JITTER, INTERVAL_JITTER)
-                        logging.info(f"Aguardando {delay}s (3 min) antes do próximo lead para evitar bloqueios...")
+                        logging.info(f"Aguardando {delay}s (1m20s) antes do próximo lead para evitar bloqueios...")
                         pode_continuar = wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit", license_ctrl=license_ctrl)
                         if not pode_continuar:
                             rpa.stop()
