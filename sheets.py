@@ -119,24 +119,22 @@ def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_G
 
 def prioritize_leads_for_robot(leads: List[Dict[str, Any]], robot_id: str) -> List[Dict[str, Any]]:
     """
-    Organiza os leads para que Robô 1 e Robô 2 nunca disputem o mesmo lead:
-    - Robô 1 prioriza linhas ímpares (3, 5, 7...), e depois pares (2, 4, 6...)
-    - Robô 2 prioriza linhas pares (2, 4, 6...), e depois ímpares (3, 5, 7...)
-    Se uma das máquinas estiver desligada, a outra processa 100% da lista normalmente.
+    Fila Estrita por Ordem de Chegada (FIFO - de cima para baixo):
+    Processa os leads rigorosamente na ordem em que entraram na planilha (speed-to-lead máximo).
+    Para evitar que Robô 1 e Robô 2 disputem a mesma linha caso consultem no mesmo instante:
+    - Robô 1 mira no 1º lead livre do topo (índice 0).
+    - Robô 2 mira no 2º lead livre do topo (índice 1, se houver).
+    Ambos avançam juntos linha a linha, de cima para baixo, sem deixar nenhum lead esperando.
     """
+    if not leads:
+        return []
+
     is_robo_2 = "2" in str(robot_id)
-    preferidos = []
-    secundarios = []
+    if is_robo_2 and len(leads) > 1:
+        # Robô 2 pega o 2º da fila para andar junto com o Robô 1 sem colisão
+        return [leads[1], leads[0]] + leads[2:]
 
-    for lead in leads:
-        row_num = lead.get("row_index", 0)
-        # Linha 2 é par, Linha 3 é ímpar
-        if (row_num % 2 == 0) if is_robo_2 else (row_num % 2 != 0):
-            preferidos.append(lead)
-        else:
-            secundarios.append(lead)
-
-    return preferidos + secundarios
+    return list(leads)
 
 def reserve_sheet_lead(cnpj: str, robot_id: str = "Robô"):
     """

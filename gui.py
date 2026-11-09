@@ -487,9 +487,9 @@ class BotGUI:
         messagebox.showinfo(
             "Identificação Alterada",
             f"Esta máquina agora está configurada como: {novo}!\n\n"
-            f"• Robô 1 prioriza linhas ímpares da planilha.\n"
-            f"• Robô 2 prioriza linhas pares da planilha.\n\n"
-            f"As duas máquinas operarão juntas na mesma planilha sem duplicar nenhum lead.",
+            f"• Fila por Ordem de Chegada: o topo da planilha é sempre atendido primeiro.\n"
+            f"• Ambos os robôs andam juntos de cima para baixo na velocidade máxima.\n"
+            f"• Reserva imediata com status 'PROCESSANDO' para impedir duplicidade.",
             parent=self.root
         )
 
