@@ -11,7 +11,7 @@ from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 
-from config import BASE_DIR
+from config import BASE_DIR, get_robot_id, set_robot_id
 from db import (
     init_db,
     get_heartbeat,
@@ -32,7 +32,7 @@ _TOKEN_REGEX = re.compile(r"lri_[A-Za-z0-9_\-]+")
 class BotGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("⚡ Painel de Controle - Robô de Indicação LeadSale (Salesforce C6)")
+        self.root.title(f"⚡ Painel de Controle - {get_robot_id()} (Salesforce C6)")
         self.root.geometry("760x600")
         self.root.minsize(700, 550)
         self.root.configure(bg="#0F172A")
@@ -73,6 +73,21 @@ class BotGUI:
             fg="#FFFFFF"
         )
         title_lbl.pack(side="left", anchor="w")
+
+        self.robot_btn = tk.Button(
+            top_title_row,
+            text=f"⚙️ {get_robot_id()} (Clique p/ mudar)",
+            font=("Helvetica", 9, "bold"),
+            bg="#334155",
+            fg="#38BDF8",
+            activebackground="#475569",
+            padx=10,
+            pady=3,
+            relief="flat",
+            cursor="hand2",
+            command=self._toggle_robot_id
+        )
+        self.robot_btn.pack(side="right")
 
         # Status Badge & License Badge Row
         status_sub_frame = tk.Frame(header_frame, bg="#1E293B")
@@ -462,6 +477,21 @@ class BotGUI:
 
     def _open_dashboard(self):
         webbrowser.open("http://localhost:8501")
+
+    def _toggle_robot_id(self):
+        atual = get_robot_id()
+        novo = "Robô 2" if "1" in atual else "Robô 1"
+        set_robot_id(novo)
+        self.robot_btn.configure(text=f"⚙️ {novo} (Clique p/ mudar)")
+        self.root.title(f"⚡ Painel de Controle - {novo} (Salesforce C6)")
+        messagebox.showinfo(
+            "Identificação Alterada",
+            f"Esta máquina agora está configurada como: {novo}!\n\n"
+            f"• Robô 1 prioriza linhas ímpares da planilha.\n"
+            f"• Robô 2 prioriza linhas pares da planilha.\n\n"
+            f"As duas máquinas operarão juntas na mesma planilha sem duplicar nenhum lead.",
+            parent=self.root
+        )
 
     def _poll_status(self):
         try:

@@ -20,9 +20,35 @@ SHEET_GID = os.getenv("SHEET_GID", "0") # ID da aba (aba 1 costuma ser 0)
 APPS_SCRIPT_WEBHOOK_URL = os.getenv("APPS_SCRIPT_WEBHOOK_URL", "https://script.google.com/macros/s/AKfycbyZ0ZkCwCIhiJZOHaC_wufoGGSkndZlrnMx7v_EHNv1NxYruK38fKK7On5ugzwNzIW1/exec")
 
 # Configurações de Delays (em segundos)
-INTERVAL_BETWEEN_LEADS = 80   # 1 minuto e 20 segundos entre leads com fila acumulada
-INTERVAL_JITTER = 10          # Variação aleatória (+/- 10s) para humanização
+INTERVAL_BETWEEN_LEADS = 140  # 2 minutos e 20 segundos entre leads com fila acumulada
+INTERVAL_JITTER = 8           # Variação aleatória (+/- 8s) para humanização
 IDLE_KEEP_ALIVE_INTERVAL = 240 # 4 minutos para ping anti-logoff quando a fila estiver vazia
+
+# Identificação do Robô (para operação paralela multi-máquina: 'Robô 1' ou 'Robô 2')
+ROBOT_ID_FILE = BASE_DIR / "robot_id.txt"
+
+def get_robot_id() -> str:
+    """Retorna a identificação deste robô ('Robô 1' ou 'Robô 2')."""
+    if ROBOT_ID_FILE.exists():
+        try:
+            val = ROBOT_ID_FILE.read_text(encoding="utf-8").strip()
+            if val in ("1", "Robô 1", "Robo 1", "Robo1"):
+                return "Robô 1"
+            if val in ("2", "Robô 2", "Robo 2", "Robo2"):
+                return "Robô 2"
+            if val:
+                return val
+        except Exception:
+            pass
+    return os.getenv("ROBOT_ID", "Robô 1")
+
+def set_robot_id(new_id: str):
+    """Salva a identificação deste robô em robot_id.txt."""
+    try:
+        ROBOT_ID_FILE.write_text(new_id.strip(), encoding="utf-8")
+    except Exception:
+        pass
+
 
 # Diretório de perfil persistente do Chrome (salva login/cookies no Windows)
 CHROME_PROFILE_DIR = os.getenv("CHROME_PROFILE_DIR", str(BASE_DIR / "chrome_user_data"))

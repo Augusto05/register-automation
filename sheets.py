@@ -2,6 +2,7 @@ import io
 import re
 import requests
 import pandas as pd
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from config import SPREADSHEET_ID, SHEET_GID, APPS_SCRIPT_WEBHOOK_URL
 
@@ -92,9 +93,9 @@ def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_G
             if not cnpj:
                 continue
 
-            # Verifica status se houver coluna de status
+            # Verifica status se houver coluna de status (ignora cadastrados, indisponíveis e em andamento por outro robô)
             status_val = str(row.get(col_map.get("status", ""), "")).strip().upper()
-            if status_val in ["CADASTRADO", "INDISPONÍVEL", "INDISPONIVEL"]:
+            if status_val in ["CADASTRADO", "INDISPONÍVEL", "INDISPONIVEL"] or "PROCESSANDO" in status_val:
                 continue
 
             razao_social = str(row.get(col_map.get("razao_social", ""), "")).strip()
@@ -115,6 +116,35 @@ def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_G
     except Exception as e:
         print(f"[Sheets] Erro ao carregar planilha online: {e}")
         return []
+
+def prioritize_leads_for_robot(leads: List[Dict[str, Any]], robot_id: str) -> List[Dict[str, Any]]:
+    """
+    Organiza os leads para que Robô 1 e Robô 2 nunca disputem o mesmo lead:
+    - Robô 1 prioriza linhas ímpares (3, 5, 7...), e depois pares (2, 4, 6...)
+    - Robô 2 prioriza linhas pares (2, 4, 6...), e depois ímpares (3, 5, 7...)
+    Se uma das máquinas estiver desligada, a outra processa 100% da lista normalmente.
+    """
+    is_robo_2 = "2" in str(robot_id)
+    preferidos = []
+    secundarios = []
+
+    for lead in leads:
+        row_num = lead.get("row_index", 0)
+        # Linha 2 é par, Linha 3 é ímpar
+        if (row_num % 2 == 0) if is_robo_2 else (row_num % 2 != 0):
+            preferidos.append(lead)
+        else:
+            secundarios.append(lead)
+
+    return preferidos + secundarios
+
+def reserve_sheet_lead(cnpj: str, robot_id: str = "Robô"):
+    """
+    Marca o lead imediatamente como PROCESSANDO na planilha online
+    para que o outro robô o ignore instantaneamente.
+    """
+    hora_str = datetime.now().strftime("%H:%M:%S")
+    update_sheet_status(cnpj, "PROCESSANDO", f"Em andamento por {robot_id} ({hora_str})")
 
 def update_sheet_status(cnpj: str, status: str, error_message: str = ""):
     """

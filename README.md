@@ -83,6 +83,7 @@ Os cabeçalhos recomendados na primeira linha são:
 1. **CNPJ**: Converte automaticamente para apenas números sem pontuação (exigência do portal C6).
 2. **Telefone**: Valida 11 dígitos (DDD + 9) e adiciona o prefixo `55` (ex: `5511999998888`).
 3. **Razão Social**: Preenche o campo oficial e divide em *Primeiro Nome* e *Sobrenome* (obrigatório no Salesforce).
-4. **Intervalo entre Leads**: Aguarda 80s (1m20s ± 10s aleatórios) entre leads consecutivos com fila acumulada.
+4. **Intervalo entre Leads**: Aguarda 140s (2m20s ± 8s aleatórios) entre leads consecutivos com fila acumulada.
 5. **Anti-Logoff**: Durante ociosidade (sem leads novos), faz uma interação periódica a cada 4 minutos para a sessão nunca expirar.
 6. **Deduplicação**: Banco SQLite local (`leads_history.db`) impede qualquer tentativa de reenviar um CNPJ já processado.
+7. **Operação Paralela Multi-Máquina (Robô 1 e Robô 2)**: Suporte nativo para rodar duas máquinas simultâneas na mesma planilha. Robô 1 prioriza linhas ímpares e Robô 2 prioriza linhas pares, reservando imediatamente como `PROCESSANDO` na planilha para dobrar a velocidade sem conflito.

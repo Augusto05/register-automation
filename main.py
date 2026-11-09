@@ -7,7 +7,8 @@ from config import (
     BASE_DIR,
     INTERVAL_BETWEEN_LEADS,
     INTERVAL_JITTER,
-    IDLE_KEEP_ALIVE_INTERVAL
+    IDLE_KEEP_ALIVE_INTERVAL,
+    get_robot_id
 )
 from db import (
     init_db,
@@ -18,7 +19,12 @@ from db import (
     is_bot_paused,
     consume_force_check
 )
-from sheets import fetch_pending_leads, update_sheet_status
+from sheets import (
+    fetch_pending_leads,
+    update_sheet_status,
+    reserve_sheet_lead,
+    prioritize_leads_for_robot
+)
 from rpa import SalesforceRPA
 from license import LicenseController, TokenLogSanitizer
 
@@ -136,72 +142,62 @@ def run_automation_loop():
                 update_heartbeat("PAUSADO", "Robô pausado. Clique em 'Retomar' para voltar.")
                 time.sleep(2)
 
-            update_heartbeat("CONSULTANDO_PLANILHA", "Buscando novos leads na planilha online...")
+            robot_id = get_robot_id()
+            update_heartbeat("CONSULTANDO_PLANILHA", f"[{robot_id}] Buscando novos leads na planilha online...")
             pending_leads = fetch_pending_leads()
             
             # Filtra leads já cadastrados no banco local
             unprocessed_leads = [l for l in pending_leads if not is_cnpj_processed(l["cnpj"])]
 
-            if unprocessed_leads:
-                logging.info(f"Encontrados {len(unprocessed_leads)} leads pendentes para cadastro.")
-                
-                for idx, lead in enumerate(unprocessed_leads):
-                    # Verifica licença antes de cada lead do lote
-                    liberado, _ = license_ctrl.verificar_se_necessario()
-                    if not liberado:
-                        rpa.stop()
-                        return
+            # Prioriza a fila para este robô (Robô 1 pega linhas ímpares, Robô 2 pega linhas pares)
+            sorted_leads = prioritize_leads_for_robot(unprocessed_leads, robot_id)
 
-                    # Verifica se o usuário pausou durante o processamento do lote
-                    while is_bot_paused():
-                        liberado, _ = license_ctrl.verificar_se_necessario()
-                        if not liberado:
-                            rpa.stop()
-                            return
-                        update_heartbeat("PAUSADO", "Robô pausado entre leads. Clique em Retomar.")
-                        time.sleep(1)
+            if sorted_leads:
+                lead = sorted_leads[0]
+                cnpj = lead["cnpj"]
+                razao = lead["razao_social"]
+                row_idx = lead.get("row_index", "?")
+                logging.info(f"[{robot_id}] Selecionado: Linha {row_idx} - {cnpj} ({razao[:25]})")
 
-                    cnpj = lead["cnpj"]
-                    razao = lead["razao_social"]
-                    logging.info(f"[{idx+1}/{len(unprocessed_leads)}] Processando: {cnpj} - {razao}")
-                    
-                    update_heartbeat("PROCESSANDO", f"Cadastrando: {cnpj} ({razao[:22]})")
-                    
-                    result = rpa.register_lead(lead)
-                    status = result["status"]
-                    error = result["error"]
+                # 1. Reserva imediatamente na planilha como PROCESSANDO para impedir que o outro robô concorra
+                reserve_sheet_lead(cnpj, robot_id)
+                update_heartbeat("PROCESSANDO", f"[{robot_id}] Cadastrando: {cnpj} ({razao[:18]})")
 
-                    # Grava no banco local
-                    record_lead(
-                        cnpj=cnpj,
-                        razao_social=razao,
-                        email=lead["email"],
-                        telefone=lead["telefone"],
-                        status=status,
-                        error_message=error
-                    )
+                # 2. Executa o cadastro no Salesforce via RPA
+                result = rpa.register_lead(lead)
+                status = result["status"]
+                error = result["error"]
 
-                    # Atualiza na planilha online
-                    update_sheet_status(cnpj, status, error)
+                # 3. Grava no banco local
+                record_lead(
+                    cnpj=cnpj,
+                    razao_social=razao,
+                    email=lead["email"],
+                    telefone=lead["telefone"],
+                    status=status,
+                    error_message=error
+                )
 
-                    stats = get_stats_today()
-                    logging.info(f"Resultado: {status} | Erro: {error or 'Nenhum'}")
-                    logging.info(f"Hoje -> Cadastrados: {stats['cadastrados']} | Indisponíveis: {stats['indisponiveis']}")
+                # 4. Atualiza o status final na planilha online
+                update_sheet_status(cnpj, status, error)
 
-                    last_keep_alive = time.time()
+                stats = get_stats_today()
+                logging.info(f"[{robot_id}] Resultado: {status} | Erro: {error or 'Nenhum'}")
+                logging.info(f"[{robot_id}] Hoje -> Cadastrados: {stats['cadastrados']} | Indisponíveis: {stats['indisponiveis']}")
 
-                    # Se ainda restam leads nesta rodada, aguarda o intervalo (1m20s)
-                    if idx < len(unprocessed_leads) - 1:
-                        delay = INTERVAL_BETWEEN_LEADS + random.randint(-INTERVAL_JITTER, INTERVAL_JITTER)
-                        logging.info(f"Aguardando {delay}s (1m20s) antes do próximo lead para evitar bloqueios...")
-                        pode_continuar = wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit", license_ctrl=license_ctrl)
-                        if not pode_continuar:
-                            rpa.stop()
-                            return
+                last_keep_alive = time.time()
+
+                # 5. Aguarda o intervalo de 2 minutos e 20 segundos
+                delay = INTERVAL_BETWEEN_LEADS + random.randint(-INTERVAL_JITTER, INTERVAL_JITTER)
+                logging.info(f"[{robot_id}] Aguardando {delay}s (2m20s) antes do próximo lead para evitar bloqueios...")
+                pode_continuar = wait_with_heartbeat(delay, f"Lead anterior: {status}. Rate-limit", license_ctrl=license_ctrl)
+                if not pode_continuar:
+                    rpa.stop()
+                    return
 
             else:
                 # Fila vazia: momento de ociosidade
-                update_heartbeat("OCIOSO", "Fila zerada. Aguardando novos leads na planilha online...")
+                update_heartbeat("OCIOSO", f"[{robot_id}] Fila zerada. Aguardando novos leads na planilha online...")
                 
                 # Aguarda até 15s com checagem de força de verificação e pulso de batimento
                 for i in range(15):
