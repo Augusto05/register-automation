@@ -47,7 +47,7 @@ class BotGUI:
         self._start_background_services()
         self._poll_status()
 
-        # Se o escritório ainda não configurou o leadsale_token.txt, abre a janela de configuração automaticamente
+        # Se o escritório ainda não configurou o token de acesso, abre a janela de configuração automaticamente
         if not token_esta_configurado():
             self.root.after(600, self._open_token_modal)
 
@@ -67,7 +67,7 @@ class BotGUI:
 
         title_lbl = tk.Label(
             top_title_row,
-            text="🤖 Robô de Indicação LeadSale — Salesforce C6",
+            text="🤖 Robô de Cadastro de Leads — Salesforce C6",
             font=("Helvetica", 14, "bold"),
             bg="#1E293B",
             fg="#FFFFFF"
@@ -114,7 +114,7 @@ class BotGUI:
 
         tk.Label(
             status_sub_frame,
-            text="Assinatura LeadSale:",
+            text="Assinatura do Serviço:",
             font=("Helvetica", 10),
             bg="#1E293B",
             fg="#94A3B8"
@@ -142,7 +142,7 @@ class BotGUI:
 
         self.license_detail_label = tk.Label(
             header_frame,
-            text="🔐 Verificando liberação do escritório na LeadSale...",
+            text="🔐 Verificando liberação do escritório...",
             font=("Helvetica", 9),
             bg="#1E293B",
             fg="#94A3B8"
@@ -305,7 +305,7 @@ class BotGUI:
             return
 
         modal = tk.Toplevel(self.root)
-        modal.title("🔑 Configurar Token de Assinatura — LeadSale")
+        modal.title("🔑 Configurar Token de Acesso")
         modal.geometry("520x340")
         modal.resizable(False, False)
         modal.configure(bg="#0F172A")
@@ -318,7 +318,7 @@ class BotGUI:
 
         tk.Label(
             container,
-            text="🔑 Token do Escritório (LeadSale)",
+            text="🔑 Token de Acesso do Escritório",
             font=("Helvetica", 12, "bold"),
             bg="#1E293B",
             fg="#FFFFFF"
@@ -329,7 +329,7 @@ class BotGUI:
 
         tk.Label(
             container,
-            text=f"Arquivo leadsale_token.txt: {status_atual}",
+            text=f"Status da Chave: {status_atual}",
             font=("Helvetica", 9, "bold"),
             bg="#1E293B",
             fg=cor_status
@@ -337,7 +337,7 @@ class BotGUI:
 
         tk.Label(
             container,
-            text="Cole abaixo o token recebido da LeadSale (começa com lri_):",
+            text="Cole abaixo o token de acesso (começa com lri_):",
             font=("Helvetica", 9),
             bg="#1E293B",
             fg="#CBD5E1"
@@ -391,7 +391,7 @@ class BotGUI:
         aviso_txt = (
             "🔒 Cuidados importantes:\n"
             "• O token é uma senha secreta: nunca aparece na tela nem nos logs.\n"
-            "• Se aparecer 'Robô não liberado' na 1ª vez, avise a LeadSale para liberar a internet.\n"
+            "• Se aparecer 'Robô não liberado' na 1ª vez, solicite a liberação do IP/internet junto ao suporte.\n"
             "• Não tente tokens errados várias vezes seguidas (bloqueia a internet por 1 hora)."
         )
         tk.Label(
@@ -416,7 +416,7 @@ class BotGUI:
             if agora - self.last_manual_retry_ts < 15:
                 messagebox.showinfo(
                     "Token Salvo",
-                    "Token gravado em leadsale_token.txt! Aguarde alguns segundos antes de uma nova consulta à LeadSale.",
+                    "Token gravado com sucesso! Aguarde alguns segundos antes de uma nova consulta.",
                     parent=modal
                 )
                 modal.destroy()
@@ -424,7 +424,7 @@ class BotGUI:
 
             self.last_manual_retry_ts = agora
             modal.destroy()
-            self.activity_label.configure(text="Token atualizado! Validando assinatura na LeadSale...")
+            self.activity_label.configure(text="Token atualizado! Validando assinatura...")
             self._start_bot_thread_if_needed()
 
         save_btn = tk.Button(
@@ -523,7 +523,7 @@ class BotGUI:
             self.status_badge.configure(text=display_text, bg=bg_color)
             self.activity_label.configure(text=f"📌 {action}")
 
-            # Atualiza Badge da Assinatura LeadSale
+            # Atualiza Badge da Assinatura do Serviço
             license_styles = {
                 "ATIVA": ("#10B981", "🟢 LIBERADO"),
                 "CONTINGENCIA": ("#F59E0B", "🟡 RECONECTANDO (1H)"),
@@ -543,7 +543,7 @@ class BotGUI:
                 fg="#FCA5A5" if lic_status in ("BLOQUEADO", "TOKEN_AUSENTE") else "#94A3B8"
             )
 
-            # Habilita/desabilita botões operacionais caso bloqueado pela LeadSale
+            # Habilita/desabilita botões operacionais caso bloqueado por licença
             bloqueado = state in ("BLOQUEADO", "TOKEN_AUSENTE") or lic_status in ("BLOQUEADO", "TOKEN_AUSENTE")
             btn_state = "disabled" if bloqueado else "normal"
             self.pause_btn.configure(state=btn_state)

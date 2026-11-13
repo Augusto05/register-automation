@@ -44,7 +44,7 @@ if auto_refresh:
     st.sidebar.caption(f"Última atualização: {datetime.now().strftime('%H:%M:%S')}")
 
 # Header
-st.title("🤖 Monitor de Automação de Leads - LeadSale / C6 Bank")
+st.title("🤖 Monitor de Automação de Leads - Salesforce C6")
 st.markdown("Acompanhamento em tempo real da RPA de indicação de leads no Salesforce.")
 
 # Heartbeat e Status do Robô
@@ -53,7 +53,7 @@ bot_state = hb.get("state", "DESCONHECIDO")
 current_action = hb.get("current_action", "Aguardando informações...")
 last_ping = hb.get("last_ping", "N/A")
 lic_status = hb.get("license_status", "VERIFICANDO")
-lic_msg = hb.get("license_message", "Verificando assinatura na LeadSale...")
+lic_msg = hb.get("license_message", "Verificando assinatura...")
 last_lic_ok = hb.get("last_license_ok", 0)
 
 status_colors = {
@@ -82,13 +82,13 @@ lic_color, lic_label = lic_colors.get(lic_status, ("#6B7280", lic_status))
 
 if bot_state == "BLOQUEADO" or lic_status == "BLOQUEADO":
     st.error(
-        f"🚫 **{lic_msg or 'Robô não liberado para este escritório. Fale com a LeadSale.'}**\n\n"
-        "💡 *Dica: Se este for o primeiro acesso do escritório, avise a LeadSale para liberar a internet (IP) com um clique.*"
+        f"🚫 **{lic_msg or 'Robô não liberado para este escritório. Entre em contato com o suporte.'}**\n\n"
+        "💡 *Dica: Se este for o primeiro acesso do escritório, solicite a liberação do IP de internet junto ao suporte.*"
     )
 elif bot_state == "TOKEN_AUSENTE" or lic_status == "TOKEN_AUSENTE":
     st.warning(
-        "🔑 **Token da LeadSale não configurado.**\n\n"
-        "Salve o seu token (`lri_...`) no arquivo `leadsale_token.txt` na pasta do robô ou clique em **Configurar Token** no Painel de Controle."
+        "🔑 **Token de acesso não configurado.**\n\n"
+        "Salve o seu token (`lri_...`) pelo botão **Configurar Token** no Painel de Controle."
     )
 
 last_lic_str = datetime.fromtimestamp(last_lic_ok).strftime("%d/%m/%Y %H:%M") if last_lic_ok and float(last_lic_ok) > 0 else "Pendente"
@@ -101,13 +101,13 @@ st.markdown(f"""
             <span style="background-color: {state_color}22; color: {state_color}; border: 1px solid {state_color}; padding: 3px 10px; border-radius: 6px; font-weight: bold; margin-left: 6px; margin-right: 16px;">
                 {bot_state}
             </span>
-            <span style="color: #9CA3AF; font-size: 0.9rem;">Assinatura LeadSale:</span>
+            <span style="color: #9CA3AF; font-size: 0.9rem;">Assinatura do Serviço:</span>
             <span style="background-color: {lic_color}22; color: {lic_color}; border: 1px solid {lic_color}; padding: 3px 10px; border-radius: 6px; font-weight: bold; margin-left: 6px;">
                 {lic_label}
             </span>
         </div>
         <div style="color: #9CA3AF; font-size: 0.85rem;">
-            Última confirmação LeadSale: <strong>{last_lic_str}</strong> &nbsp;|&nbsp; Último batimento: <strong>{last_ping}</strong>
+            Última confirmação: <strong>{last_lic_str}</strong> &nbsp;|&nbsp; Último batimento: <strong>{last_ping}</strong>
         </div>
     </div>
     <div style="margin-top: 10px; font-size: 1.05rem; color: #F3F4F6;">

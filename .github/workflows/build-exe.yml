@@ -29,20 +29,20 @@ jobs:
 
       - name: Gerar Executavel Windows (.exe unico) com PyInstaller
         run: |
-          pyinstaller --noconfirm --onefile --windowed --name "RoboIndicacaoLeadSale" --collect-all playwright --hidden-import config --hidden-import db --hidden-import license --hidden-import main --hidden-import rpa --hidden-import sheets gui.py
+          pyinstaller --noconfirm --onefile --windowed --name "RoboIndicacaoSalesforceC6" --collect-all playwright --hidden-import config --hidden-import db --hidden-import license --hidden-import main --hidden-import rpa --hidden-import sheets gui.py
 
       - name: Publicar Executavel como Artefato
         uses: actions/upload-artifact@v4
         with:
-          name: RoboIndicacaoLeadSale-Windows-Exe
-          path: dist/RoboIndicacaoLeadSale.exe
+          name: RoboIndicacaoSalesforceC6-Windows-Exe
+          path: dist/RoboIndicacaoSalesforceC6.exe
 
       - name: Atualizar Release Publica
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v2.0-client
-          name: "Versao 2.0 LeadSale (Executavel Windows)"
-          files: dist/RoboIndicacaoLeadSale.exe
+          name: "Versao 2.0 (Executavel Windows - Salesforce C6)"
+          files: dist/RoboIndicacaoSalesforceC6.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

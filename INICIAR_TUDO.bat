@@ -2,10 +2,10 @@
 setlocal
 cd /d "%~dp0"
 
-title Automacao Leads Salesforce C6 - LeadSale
+title Automacao Leads Salesforce C6
 
 echo ===================================================================
-echo     AUTOMACAO DE LEADS SALESFORCE C6 BANK (LEADSALE)
+echo     AUTOMACAO DE LEADS SALESFORCE C6 BANK
 echo ===================================================================
 echo.
 
@@ -81,10 +81,10 @@ if not exist "venv\.installed" (
     echo ok > "venv\.installed"
 )
 
-REM 6. Verifica lembrete de token da LeadSale e inicia o painel de controle e o robo
+REM 6. Inicia o painel de controle e o robo
 if not exist "leadsale_token.txt" (
-    echo [AVISO] Arquivo leadsale_token.txt ainda nao configurado.
-    echo Voce podera colar o seu token lri_ diretamente na janela do Painel de Controle!
+    echo [AVISO] Chave de ativacao ainda nao configurada.
+    echo Voce podera colar o seu token diretamente na janela do Painel de Controle!
     echo.
 )
 

@@ -56,7 +56,7 @@ def wait_with_heartbeat(seconds: int, action_prefix: str, license_ctrl: LicenseC
     """
     Aguarda o intervalo atualizando o batimento a cada 2 segundos.
     Respeita pausas, sinal de verificação imediata e checagem periódica de licença.
-    Retorna True se pode prosseguir, ou False se o robô foi bloqueado pela LeadSale.
+    Retorna True se pode prosseguir, ou False se o robô foi bloqueado por licença.
     """
     start = time.time()
     while time.time() - start < seconds:
@@ -85,8 +85,8 @@ def run_automation_loop():
     prevent_windows_sleep()
     init_db()
 
-    # 1. Conferência obrigatória da assinatura LeadSale ao abrir
-    update_heartbeat("INICIANDO", "Conferindo assinatura do escritório na LeadSale...")
+    # 1. Conferência obrigatória da assinatura ao abrir
+    update_heartbeat("INICIANDO", "Conferindo assinatura do escritório...")
     license_ctrl = LicenseController(persist_db=True)
     liberado, motivo = license_ctrl.verificar_se_necessario()
     if not liberado:
@@ -127,7 +127,7 @@ def run_automation_loop():
 
     while True:
         try:
-            # Verifica assinatura LeadSale (1x por dia ou 1x por hora em contingência)
+            # Verifica assinatura (1x por dia ou 1x por hora em contingência)
             liberado, _ = license_ctrl.verificar_se_necessario()
             if not liberado:
                 rpa.stop()

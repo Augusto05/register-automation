@@ -38,7 +38,7 @@ def init_db():
         force_check INTEGER DEFAULT 0,
         manual_login INTEGER DEFAULT 0,
         license_status TEXT DEFAULT 'VERIFICANDO',
-        license_message TEXT DEFAULT 'Verificando assinatura na LeadSale...',
+        license_message TEXT DEFAULT 'Verificando assinatura...',
         last_license_ok REAL DEFAULT 0,
         next_license_check REAL DEFAULT 0
     )
@@ -50,7 +50,7 @@ def init_db():
         ("force_check", "INTEGER DEFAULT 0"),
         ("manual_login", "INTEGER DEFAULT 0"),
         ("license_status", "TEXT DEFAULT 'VERIFICANDO'"),
-        ("license_message", "TEXT DEFAULT 'Verificando assinatura na LeadSale...'"),
+        ("license_message", "TEXT DEFAULT 'Verificando assinatura...'"),
         ("last_license_ok", "REAL DEFAULT 0"),
         ("next_license_check", "REAL DEFAULT 0")
     ]
@@ -72,7 +72,7 @@ def init_db():
         VALUES (
             1, CURRENT_TIMESTAMP, 'INICIANDO', 'Robô inicializado',
             0, 0, 0, 0, 0,
-            'VERIFICANDO', 'Verificando assinatura na LeadSale...', 0, 0
+            'VERIFICANDO', 'Verificando assinatura...', 0, 0
         )
         """)
 
@@ -142,7 +142,7 @@ def update_heartbeat(state: str, action: str):
     _push_cloud_heartbeat(state, action, cadastrados, indisponiveis, lic_status, lic_msg, lic_ok)
 
 def update_license_state(status: str, message: str, last_ok: float = None, next_check: float = None):
-    """Atualiza o status de validação da assinatura LeadSale no banco local."""
+    """Atualiza o status de validação da assinatura no banco local."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -170,12 +170,12 @@ def update_license_state(status: str, message: str, last_ok: float = None, next_
     conn.close()
 
 def get_license_state() -> dict:
-    """Retorna os metadados de validação da assinatura LeadSale."""
+    """Retorna os metadados de validação da assinatura."""
     conn = get_connection()
     cursor = conn.cursor()
     result = {
         "license_status": "VERIFICANDO",
-        "license_message": "Verificando assinatura na LeadSale...",
+        "license_message": "Verificando assinatura...",
         "last_license_ok": 0.0,
         "next_license_check": 0.0
     }

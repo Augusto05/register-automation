@@ -109,16 +109,16 @@ def salvar_token(novo_token: str) -> Tuple[bool, str]:
     if not limpo:
         return False, "O token não pode estar vazio."
     if not validar_formato_token(limpo):
-        return False, "Formato inválido. O token da LeadSale deve começar com 'lri_' e não conter espaços."
+        return False, "Formato inválido. O token de acesso deve começar com 'lri_' e não conter espaços."
     try:
         TOKEN_PATH.write_text(limpo, encoding="utf-8")
-        return True, "Token salvo com segurança em leadsale_token.txt!"
+        return True, "Token de acesso salvo com sucesso!"
     except Exception:
-        return False, "Não foi possível gravar o arquivo leadsale_token.txt na pasta do robô."
+        return False, "Não foi possível gravar o arquivo de chave na pasta do robô."
 
 
 def assinatura_ativa() -> Optional[bool]:
-    """True = liberado · False = não liberado · None = LeadSale não respondeu."""
+    """True = liberado · False = não liberado · None = servidor de licença não respondeu."""
     global _ultimo_motivo
     token = carregar_token()
     if not validar_formato_token(token):
@@ -155,8 +155,8 @@ def assinatura_ativa() -> Optional[bool]:
 
 class LicenseController:
     """
-    Controla o ciclo de verificação da assinatura LeadSale:
-    - Pergunta à LeadSale ao abrir (proxima_consulta = 0) e depois 1 vez por dia (24h).
+    Controla o ciclo de verificação da assinatura:
+    - Consulta o status ao abrir (proxima_consulta = 0) e depois 1 vez por dia (24h).
     - Se sem resposta (None), continua rodando e tenta novamente em 1 hora (por até 48h).
     - Se não liberado (False) ou sem confirmação por > 48h, para o robô imediatamente.
     """
@@ -182,10 +182,10 @@ class LicenseController:
         if agora < self.proxima_consulta:
             return True, "Assinatura ativa"
 
-        # 1. Verifica localmente se o arquivo leadsale_token.txt existe e tem formato válido
+        # 1. Verifica localmente se o arquivo de token existe e tem formato válido
         # (Evita enviar chamadas inválidas para a API e bloquear o IP do escritório por 1h)
         if not token_esta_configurado():
-            msg = "Token LeadSale não configurado. Configure o arquivo leadsale_token.txt (ou clique em '🔑 Configurar Token')."
+            msg = "Token de acesso não configurado. Configure a chave de ativação no botão '🔑 Configurar Token'."
             logging.error(msg)
             if self.persist_db:
                 update_license_state("TOKEN_AUSENTE", msg, next_check=0)
@@ -193,7 +193,7 @@ class LicenseController:
             return False, msg
 
         if self.persist_db:
-            update_license_state("VERIFICANDO", "Conferindo assinatura na LeadSale...")
+            update_license_state("VERIFICANDO", "Conferindo assinatura do escritório...")
 
         resposta = assinatura_ativa()
         agora = time.time()
@@ -201,8 +201,8 @@ class LicenseController:
         if resposta is True:
             self.ultima_confirmacao = agora
             self.proxima_consulta = agora + UM_DIA
-            msg = "Assinatura confirmada na LeadSale (próxima verificação em 24h)."
-            logging.info(f"[LeadSale] {msg}")
+            msg = "Assinatura confirmada (próxima verificação em 24h)."
+            logging.info(f"[Licença] {msg}")
             if self.persist_db:
                 update_license_state(
                     "ATIVA",
@@ -213,8 +213,8 @@ class LicenseController:
             return True, msg
 
         elif resposta is False:
-            msg = "Robô não liberado para este escritório. Fale com a LeadSale."
-            logging.error(f"[LeadSale] {msg}")
+            msg = "Robô não liberado para este escritório. Entre em contato com o suporte."
+            logging.error(f"[Licença] {msg}")
             if self.persist_db:
                 update_license_state(
                     "BLOQUEADO",
@@ -225,11 +225,11 @@ class LicenseController:
             return False, msg
 
         else:
-            # resposta is None: internet caiu ou LeadSale fora do ar
+            # resposta is None: internet caiu ou servidor fora do ar
             self.proxima_consulta = agora + UMA_HORA
             if agora - self.ultima_confirmacao > 2 * UM_DIA:
-                msg = "Sem confirmação da LeadSale. Robô parado."
-                logging.error(f"[LeadSale] {msg}")
+                msg = "Sem confirmação de assinatura. Robô parado."
+                logging.error(f"[Licença] {msg}")
                 if self.persist_db:
                     update_license_state(
                         "BLOQUEADO",
@@ -239,8 +239,8 @@ class LicenseController:
                     update_heartbeat("BLOQUEADO", msg)
                 return False, msg
 
-            msg = "Sem resposta da LeadSale — operando em contingência (nova tentativa em 1h)."
-            logging.warning(f"[LeadSale] {msg}")
+            msg = "Sem resposta do servidor de licença — operando em contingência (nova tentativa em 1h)."
+            logging.warning(f"[Licença] {msg}")
             if self.persist_db:
                 update_license_state(
                     "CONTINGENCIA",

@@ -23,7 +23,7 @@ else
 fi
 
 if [ ! -f "leadsale_token.txt" ]; then
-    echo "[AVISO] Arquivo leadsale_token.txt não encontrado. Você poderá configurá-lo na tela do Painel de Controle."
+    echo "[AVISO] Chave de ativação não encontrada. Você poderá configurá-la na tela do Painel de Controle."
 fi
 
 echo "[3/3] Iniciando painel de controle e robô..."
