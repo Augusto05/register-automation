@@ -121,7 +121,9 @@ class SalesforceRPA:
         """
         cnpj = lead_data.get("cnpj", "")
         razao_social = lead_data.get("razao_social", "")
-        email = lead_data.get("email", "")
+        email = str(lead_data.get("email") or "").strip()
+        if not email or email.lower() in ("nan", "none", "null", "undefined"):
+            email = "sememail@email.com.br"
         telefone = lead_data.get("telefone", "")
 
         first_name, last_name = self.split_razao_social(razao_social)

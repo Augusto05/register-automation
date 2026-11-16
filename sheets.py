@@ -59,7 +59,10 @@ def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_G
         if not spreadsheet_id or spreadsheet_id == "SEU_SPREADSHEET_ID_AQUI":
             return []
 
-        csv_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv&gid={gid}"
+        match = re.search(r"/d/([a-zA-Z0-9-_]+)", spreadsheet_id)
+        clean_id = match.group(1) if match else spreadsheet_id
+
+        csv_url = f"https://docs.google.com/spreadsheets/d/{clean_id}/export?format=csv&gid={gid}"
         try:
             response = requests.get(csv_url, timeout=15)
             response.raise_for_status()
@@ -100,6 +103,8 @@ def fetch_pending_leads(spreadsheet_id: str = SPREADSHEET_ID, gid: str = SHEET_G
 
             razao_social = str(row.get(col_map.get("razao_social", ""), "")).strip()
             email = str(row.get(col_map.get("email", ""), "")).strip()
+            if not email or email.lower() in ("nan", "none", "null", "undefined"):
+                email = "sememail@email.com.br"
             telefone = clean_phone(row.get(col_map.get("telefone", ""), ""))
 
             pending.append({

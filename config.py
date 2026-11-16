@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -13,11 +14,41 @@ SALESFORCE_LEADS_URL = "https://c6bank.my.site.com/partners/s/lead/Lead/00B5A000
 # Google Sheets Config
 # Pode ser o ID da planilha ou a URL pública completa
 # Exemplo: https://docs.google.com/spreadsheets/d/SEU_SPREADSHEET_ID/edit
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1lxFL4Rh9rxvRYn0IXA634dowZZeBeNeEQ6VsTcWZB9E")
+DEFAULT_SPREADSHEET_ID = "1q67SI3sOLURgpnud9SHSVc001DddJMkG7QKIZWONkRM"
+SPREADSHEET_ID_FILE = BASE_DIR / "spreadsheet_id.txt"
+
+def get_spreadsheet_id() -> str:
+    """Retorna o ID da planilha, permitindo ler de spreadsheet_id.txt, env var ou padrão."""
+    if SPREADSHEET_ID_FILE.exists():
+        try:
+            val = SPREADSHEET_ID_FILE.read_text(encoding="utf-8").strip()
+            if val:
+                match = re.search(r"/d/([a-zA-Z0-9-_]+)", val)
+                return match.group(1) if match else val
+        except Exception:
+            pass
+    raw = os.getenv("SPREADSHEET_ID", DEFAULT_SPREADSHEET_ID).strip()
+    match = re.search(r"/d/([a-zA-Z0-9-_]+)", raw)
+    return match.group(1) if match else raw
+
+SPREADSHEET_ID = get_spreadsheet_id()
 SHEET_GID = os.getenv("SHEET_GID", "0") # ID da aba (aba 1 costuma ser 0)
 
 # URL do Webhook do Google Apps Script (opcional, para gravar Status CADASTRADO/INDISPONIVEL na planilha pública sem auth)
-APPS_SCRIPT_WEBHOOK_URL = os.getenv("APPS_SCRIPT_WEBHOOK_URL", "https://script.google.com/macros/s/AKfycbyZ0ZkCwCIhiJZOHaC_wufoGGSkndZlrnMx7v_EHNv1NxYruK38fKK7On5ugzwNzIW1/exec")
+APPS_SCRIPT_FILE = BASE_DIR / "apps_script_url.txt"
+
+def get_apps_script_url() -> str:
+    """Retorna a URL do Webhook se configurada em apps_script_url.txt ou env var."""
+    if APPS_SCRIPT_FILE.exists():
+        try:
+            val = APPS_SCRIPT_FILE.read_text(encoding="utf-8").strip()
+            if val:
+                return val
+        except Exception:
+            pass
+    return os.getenv("APPS_SCRIPT_WEBHOOK_URL", "")
+
+APPS_SCRIPT_WEBHOOK_URL = get_apps_script_url()
 
 # Configurações de Delays (em segundos)
 INTERVAL_BETWEEN_LEADS = 140  # 2 minutos e 20 segundos entre leads com fila acumulada
