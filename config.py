@@ -46,7 +46,7 @@ def get_apps_script_url() -> str:
                 return val
         except Exception:
             pass
-    return os.getenv("APPS_SCRIPT_WEBHOOK_URL", "")
+    return os.getenv("APPS_SCRIPT_WEBHOOK_URL", "https://script.google.com/macros/s/AKfycbxcJzezeAGp85Yu-idfs5WpWqRGbTbPkkZaVRtt4wbngwCX14NY00rZ9xWRSY_1S4ND/exec")
 
 APPS_SCRIPT_WEBHOOK_URL = get_apps_script_url()
 
