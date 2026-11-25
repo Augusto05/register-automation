@@ -14,7 +14,7 @@ SALESFORCE_LEADS_URL = "https://c6bank.my.site.com/partners/s/lead/Lead/00B5A000
 # Google Sheets Config
 # Pode ser o ID da planilha ou a URL pública completa
 # Exemplo: https://docs.google.com/spreadsheets/d/SEU_SPREADSHEET_ID/edit
-DEFAULT_SPREADSHEET_ID = "1q67SI3sOLURgpnud9SHSVc001DddJMkG7QKIZWONkRM"
+DEFAULT_SPREADSHEET_ID = "1eX1UnxZc_6sYpzFqonGEQ0mO3oguKak0rSPj3sRbaqE"
 SPREADSHEET_ID_FILE = BASE_DIR / "spreadsheet_id.txt"
 
 def get_spreadsheet_id() -> str:
